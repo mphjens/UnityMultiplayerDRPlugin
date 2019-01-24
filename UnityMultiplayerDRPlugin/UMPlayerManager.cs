@@ -129,5 +129,6 @@ namespace UnityMultiplayerDRPlugin
         public override bool ThreadSafe => false;
 
         public override Version Version => new Version(0, 0, 1);
+
     }
 }

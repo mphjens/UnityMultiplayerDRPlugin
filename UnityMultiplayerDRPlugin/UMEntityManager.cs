@@ -24,10 +24,10 @@ namespace UnityMultiplayerDRPlugin
 
         private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
         {
-            if(e.Client == PhysicsHost)
+            if (e.Client == PhysicsHost)
             {
                 this.PhysicsHost = null;
-                if(ClientManager.Count > 0)
+                if (ClientManager.Count > 0)
                 {
                     this.SetPhysicsHost(ClientManager.GetAllClients()[0]);
                 }
@@ -36,7 +36,7 @@ namespace UnityMultiplayerDRPlugin
 
         private void ClientConnected(object sender, ClientConnectedEventArgs e)
         {
-            if(PhysicsHost == null)
+            if (PhysicsHost == null)
             {
                 this.SetPhysicsHost(e.Client);
             }
@@ -105,9 +105,9 @@ namespace UnityMultiplayerDRPlugin
                     }
                 }
 
-                if(message.Tag == Tags.PhysicsUpdateEntityTag)
+                if (message.Tag == Tags.PhysicsUpdateEntityTag)
                 {
-                    if(e.Client == PhysicsHost)
+                    if (e.Client == PhysicsHost)
                         PhysicsUpdate(sender, e);
                 }
             }
@@ -133,24 +133,64 @@ namespace UnityMultiplayerDRPlugin
         {
             using (DarkRiftReader reader = e.GetMessage().GetReader())
             {
-                while (reader.Position < reader.Length)
+                using (DarkRiftWriter entityPhysWriter = DarkRiftWriter.Create())
                 {
-                    uint id = reader.ReadUInt32();
-                    float x = reader.ReadSingle();
-                    float y = reader.ReadSingle();
-                    float z = reader.ReadSingle();
+                    while (reader.Position < reader.Length)
+                    {
+                        uint id = reader.ReadUInt32();
+                        float x = reader.ReadSingle();
+                        float y = reader.ReadSingle();
+                        float z = reader.ReadSingle();
 
-                    float rx = reader.ReadSingle();
-                    float ry = reader.ReadSingle();
-                    float rz = reader.ReadSingle();
+                        float rx = reader.ReadSingle();
+                        float ry = reader.ReadSingle();
+                        float rz = reader.ReadSingle();
 
-                    float sx = reader.ReadSingle();
-                    float sy = reader.ReadSingle();
-                    float sz = reader.ReadSingle();
-                    SetTransform(id, x, y, z, rx, ry, rz, sx, sy, sz);
+                        float vx = reader.ReadSingle();
+                        float vy = reader.ReadSingle();
+                        float vz = reader.ReadSingle();
+
+                        if (Entities.ContainsKey(id))
+                        {
+                            Entities[id].X = x;
+                            Entities[id].Y = y;
+                            Entities[id].Z = z;
+                            Entities[id].rotX = rx;
+                            Entities[id].rotY = ry;
+                            Entities[id].rotZ = rz;
+                            Entities[id].velocityX = vx;
+                            Entities[id].velocityY = vy;
+                            Entities[id].velocityZ = vz;
+
+
+                            entityPhysWriter.Write(id);
+                            entityPhysWriter.Write(x);
+                            entityPhysWriter.Write(y);
+                            entityPhysWriter.Write(z);
+
+                            entityPhysWriter.Write(rx);
+                            entityPhysWriter.Write(ry);
+                            entityPhysWriter.Write(rz);
+
+                            entityPhysWriter.Write(vx);
+                            entityPhysWriter.Write(vy);
+                            entityPhysWriter.Write(vz);
+
+                        }
+
+                    }
+
+
+                    using (Message physUpdateMessage = Message.Create(Tags.PhysicsUpdateEntityTag, entityPhysWriter))
+                    {
+                        foreach (IClient c in ClientManager.GetAllClients().Where(cl => cl != PhysicsHost))
+                            c.SendMessage(physUpdateMessage, SendMode.Unreliable);
+                    }
                 }
             }
         }
+
+
 
         public uint SpawnEntity(ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
             float rotX = 0, float rotY = 0, float rotZ = 0,
@@ -262,6 +302,7 @@ namespace UnityMultiplayerDRPlugin
         }
 
 
+
         //TODO: Make a seperate method for physics update where all position updates are sent in one message to all clients other than the physicshost
         public void SetTransform(uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
         {
@@ -305,7 +346,7 @@ namespace UnityMultiplayerDRPlugin
                             foreach (IClient c in ClientManager.GetAllClients())
                                 c.SendMessage(setStateMessage, SendMode.Unreliable);
                         }
-                        
+
                     }
 
                 }
@@ -319,5 +360,19 @@ namespace UnityMultiplayerDRPlugin
         public override bool ThreadSafe => false;
 
         public override Version Version => new Version(0, 0, 2);
+
+        public override Command[] Commands => new Command[]
+      {
+            new Command("clear", "Despawns all entities", "", ClearCommandHandler)
+      };
+
+        void ClearCommandHandler(object sender, CommandEventArgs e)
+        {
+            uint[] keys = this.Entities.Keys.ToArray();
+            foreach(uint key in keys)
+            {
+                this.DespawnEntity(key);
+            }
+        }
     }
 }

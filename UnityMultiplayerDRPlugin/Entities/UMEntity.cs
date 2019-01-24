@@ -23,6 +23,10 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float scaleY { get; set; }
         public float scaleZ { get; set; }
 
+        public float velocityX { get; set; }
+        public float velocityY { get; set; }
+        public float velocityZ { get; set; }
+
         public void WriteSpawn(DarkRift.DarkRiftWriter writer)
         {
             writer.Write(this.id);

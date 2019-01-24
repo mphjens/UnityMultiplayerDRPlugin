@@ -15,6 +15,6 @@ namespace UnityMultiplayerDRPlugin
         public static readonly ushort SetStateEntityTag = 5;
         public static readonly ushort DespawnEntityTag = 6;
         public static readonly ushort SetEntityPhysicsHost = 7;
-        public static readonly ushort PhysicsUpdateEntityTag = 8; //Same message body as TransformEntityTag
+        public static readonly ushort PhysicsUpdateEntityTag = 8;
     }
 }

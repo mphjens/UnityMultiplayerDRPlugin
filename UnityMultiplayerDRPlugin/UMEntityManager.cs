@@ -110,6 +110,16 @@ namespace UnityMultiplayerDRPlugin
                     if (e.Client == PhysicsHost)
                         PhysicsUpdate(sender, e);
                 }
+                if (message.Tag == Tags.SetPhysicsEntityTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        uint id = reader.ReadUInt32();
+                        bool hasPhysics = reader.ReadBoolean();
+                        bool isKinematic = reader.ReadBoolean();
+                        setPhysics(id, hasPhysics, isKinematic);
+                    }
+                }
             }
         }
 
@@ -188,6 +198,29 @@ namespace UnityMultiplayerDRPlugin
                     }
                 }
             }
+        }
+
+        public void setPhysics(uint id, bool hasPhysics, bool isKinematic)
+        {
+
+            if (Entities.ContainsKey(id))
+            {
+                Entities[id].hasPhysics = hasPhysics;
+
+                using (DarkRiftWriter physSettingsWriter = DarkRiftWriter.Create())
+                {
+                    physSettingsWriter.Write(id);
+                    physSettingsWriter.Write(hasPhysics);
+                    physSettingsWriter.Write(isKinematic);
+
+                    using (Message physUpdateMessage = Message.Create(Tags.SetPhysicsEntityTag, physSettingsWriter))
+                    {
+                        foreach (IClient c in ClientManager.GetAllClients())
+                            c.SendMessage(physUpdateMessage, SendMode.Unreliable);
+                    }
+                }
+            }
+
         }
 
 
@@ -303,7 +336,7 @@ namespace UnityMultiplayerDRPlugin
 
 
 
-        //TODO: Make a seperate method for physics update where all position updates are sent in one message to all clients other than the physicshost
+        
         public void SetTransform(uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
         {
             if (Entities.ContainsKey(id))
@@ -335,17 +368,8 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message setStateMessage = Message.Create(Tags.TransformEntityTag, entityTransformWriter))
                     {
-
-                        if (Entities[id].hasPhysics)
-                        {
-                            foreach (IClient c in ClientManager.GetAllClients().Where(cl => cl != PhysicsHost))
-                                c.SendMessage(setStateMessage, SendMode.Unreliable);
-                        }
-                        else
-                        {
-                            foreach (IClient c in ClientManager.GetAllClients())
-                                c.SendMessage(setStateMessage, SendMode.Unreliable);
-                        }
+                        foreach (IClient c in ClientManager.GetAllClients())
+                            c.SendMessage(setStateMessage, SendMode.Unreliable);
 
                     }
 
@@ -369,7 +393,7 @@ namespace UnityMultiplayerDRPlugin
         void ClearCommandHandler(object sender, CommandEventArgs e)
         {
             uint[] keys = this.Entities.Keys.ToArray();
-            foreach(uint key in keys)
+            foreach (uint key in keys)
             {
                 this.DespawnEntity(key);
             }

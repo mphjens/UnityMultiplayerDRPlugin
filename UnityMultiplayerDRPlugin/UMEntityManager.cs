@@ -1,7 +1,9 @@
 ﻿using DarkRift;
 using DarkRift.Server;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using UnityMultiplayerDRPlugin.Entities;
@@ -13,9 +15,8 @@ namespace UnityMultiplayerDRPlugin
 
         IClient PhysicsHost;
 
-        Dictionary<uint, UMEntity> Entities = new Dictionary<uint, UMEntity>();
-        private uint entityIdCounter = 0;
-
+        WorldData World = new WorldData();
+        
         public UMEntityManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
             ClientManager.ClientConnected += ClientConnected;
@@ -127,7 +128,7 @@ namespace UnityMultiplayerDRPlugin
         {
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
             {
-                foreach (UMEntity entity in Entities.Values)
+                foreach (UMEntity entity in World.Entities.Values)
                 {
                     entity.WriteSpawn(entityWriter);
                 }
@@ -160,17 +161,17 @@ namespace UnityMultiplayerDRPlugin
                         float vy = reader.ReadSingle();
                         float vz = reader.ReadSingle();
 
-                        if (Entities.ContainsKey(id))
+                        if (World.Entities.ContainsKey(id))
                         {
-                            Entities[id].X = x;
-                            Entities[id].Y = y;
-                            Entities[id].Z = z;
-                            Entities[id].rotX = rx;
-                            Entities[id].rotY = ry;
-                            Entities[id].rotZ = rz;
-                            Entities[id].velocityX = vx;
-                            Entities[id].velocityY = vy;
-                            Entities[id].velocityZ = vz;
+                            World.Entities[id].X = x;
+                            World.Entities[id].Y = y;
+                            World.Entities[id].Z = z;
+                            World.Entities[id].rotX = rx;
+                            World.Entities[id].rotY = ry;
+                            World.Entities[id].rotZ = rz;
+                            World.Entities[id].velocityX = vx;
+                            World.Entities[id].velocityY = vy;
+                            World.Entities[id].velocityZ = vz;
 
 
                             entityPhysWriter.Write(id);
@@ -203,9 +204,9 @@ namespace UnityMultiplayerDRPlugin
         public void setPhysics(uint id, bool hasPhysics, bool isKinematic)
         {
 
-            if (Entities.ContainsKey(id))
+            if (World.Entities.ContainsKey(id))
             {
-                Entities[id].hasPhysics = hasPhysics;
+                World.Entities[id].hasPhysics = hasPhysics;
 
                 using (DarkRiftWriter physSettingsWriter = DarkRiftWriter.Create())
                 {
@@ -244,12 +245,12 @@ namespace UnityMultiplayerDRPlugin
             newEntity.scaleY = scaleY;
             newEntity.scaleZ = scaleZ;
 
-            entityIdCounter++;
-            newEntity.id = entityIdCounter;
+            World.entityIdCounter++;
+            newEntity.id = World.entityIdCounter;
 
-            Console.WriteLine("COUNTER = " + entityIdCounter);
+            Console.WriteLine("COUNTER = " + World.entityIdCounter);
 
-            this.Entities.Add(newEntity.id, newEntity);
+            World.Entities.Add(newEntity.id, newEntity);
 
 
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
@@ -270,9 +271,9 @@ namespace UnityMultiplayerDRPlugin
 
         public void DespawnEntity(uint id)
         {
-            if (Entities.ContainsKey(id))
+            if (World.Entities.ContainsKey(id))
             {
-                Entities.Remove(id);
+                World.Entities.Remove(id);
 
                 using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
                 {
@@ -294,9 +295,9 @@ namespace UnityMultiplayerDRPlugin
 
         public bool SetState(uint id, ushort state)
         {
-            if (Entities.ContainsKey(id))
+            if (World.Entities.ContainsKey(id))
             {
-                Entities[id].state = state;
+                World.Entities[id].state = state;
 
                 using (DarkRiftWriter entityStateWriter = DarkRiftWriter.Create())
                 {
@@ -336,20 +337,20 @@ namespace UnityMultiplayerDRPlugin
 
 
 
-        
+
         public void SetTransform(uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
         {
-            if (Entities.ContainsKey(id))
+            if (World.Entities.ContainsKey(id))
             {
-                Entities[id].X = x;
-                Entities[id].Y = y;
-                Entities[id].Z = z;
-                Entities[id].rotX = rx;
-                Entities[id].rotY = ry;
-                Entities[id].rotZ = rz;
-                Entities[id].scaleX = sx;
-                Entities[id].scaleY = sy;
-                Entities[id].scaleZ = sz;
+                World.Entities[id].X = x;
+                World.Entities[id].Y = y;
+                World.Entities[id].Z = z;
+                World.Entities[id].rotX = rx;
+                World.Entities[id].rotY = ry;
+                World.Entities[id].rotZ = rz;
+                World.Entities[id].scaleX = sx;
+                World.Entities[id].scaleY = sy;
+                World.Entities[id].scaleZ = sz;
 
                 using (DarkRiftWriter entityTransformWriter = DarkRiftWriter.Create())
                 {
@@ -383,16 +384,53 @@ namespace UnityMultiplayerDRPlugin
 
         public override bool ThreadSafe => false;
 
-        public override Version Version => new Version(0, 0, 2);
+        public override Version Version => new Version(0, 0, 3);
 
         public override Command[] Commands => new Command[]
-      {
-            new Command("clear", "Despawns all entities", "", ClearCommandHandler)
-      };
+        {
+            new Command("clear", "Despawns all entities", "", ClearCommandHandler),
+            new Command("save", "Saves the world as a json file", "", SaveCommandHandler),
+            new Command("load", "Loads a world", "", LoadCommandHandler)
+        };
+        
+        void SaveCommandHandler(object sender, CommandEventArgs e)
+        {
+            string json = JsonConvert.SerializeObject(World);
+            if (!File.Exists(World.Name+".json"))
+            {
+                File.Create(World.Name + ".json").Close();
+            }
+            StreamWriter writer = new StreamWriter(World.Name + ".json");
+            writer.Write(json);
+            writer.Close();
+        }
+
+        void LoadCommandHandler(object sender, CommandEventArgs e)
+        {
+            string filename = e.Arguments[1] + ".json";
+            if (File.Exists(filename))
+            {
+                StreamReader reader = new StreamReader(filename);
+                string json = reader.ReadToEnd();
+                reader.Close();
+
+                WorldData world = JsonConvert.DeserializeObject<WorldData>(json);
+                this.World = world;
+                foreach (IClient c in ClientManager.GetAllClients())
+                    BroadcastEntities(c);
+            }
+            else
+            {
+                Console.WriteLine(filename + " not found");
+            }
+            
+            
+            
+        }
 
         void ClearCommandHandler(object sender, CommandEventArgs e)
         {
-            uint[] keys = this.Entities.Keys.ToArray();
+            uint[] keys = World.Entities.Keys.ToArray();
             foreach (uint key in keys)
             {
                 this.DespawnEntity(key);

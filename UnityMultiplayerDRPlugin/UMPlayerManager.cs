@@ -19,6 +19,21 @@ namespace UnityMultiplayerDRPlugin
             ClientManager.ClientDisconnected += ClientDisconnected;
         }
 
+        private void Client_MessageReceived(object sender, MessageReceivedEventArgs e)
+        {
+            using (Message message = e.GetMessage() as Message)
+            {
+                if (message.Tag == Tags.MovePlayerTag)
+                {
+                    MovementMessageReceived(sender, e);
+                } else if(message.Tag == Tags.SpawnPlayerTag)
+                {
+                    SpawnMessageReceived(sender, e);
+                }
+
+            }
+        }
+
         private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
         {
             players.Remove(e.Client);
@@ -37,58 +52,68 @@ namespace UnityMultiplayerDRPlugin
 
         private void ClientConnected(object sender, ClientConnectedEventArgs e)
         {
+            e.Client.MessageReceived += Client_MessageReceived;
 
-
-            Random r = new Random();
-            Player newPlayer = new Player(
-                e.Client.ID,
-                (float)r.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
-                10,
-                (float)r.NextDouble() * MAP_WIDTH - MAP_WIDTH / 2,
-                1f,
-                (byte)r.Next(0, 200),
-                (byte)r.Next(0, 200),
-                (byte)r.Next(0, 200)
-            );
-
-            using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
+            //Send exsisting players
+            using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
             {
-                newPlayerWriter.Write(newPlayer.ID);
-                newPlayerWriter.Write(newPlayer.X);
-                newPlayerWriter.Write(newPlayer.Y);
-                newPlayerWriter.Write(newPlayer.Z);
-                newPlayerWriter.Write(newPlayer.Radius);
-                newPlayerWriter.Write(newPlayer.ColorR);
-                newPlayerWriter.Write(newPlayer.ColorG);
-                newPlayerWriter.Write(newPlayer.ColorB);
-
-                using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
+                foreach (Player player in players.Values)
                 {
-                    foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
-                        client.SendMessage(newPlayerMessage, SendMode.Reliable);
+                    playerWriter.Write(player.ID);
+                    playerWriter.Write(player.X);
+                    playerWriter.Write(player.Y);
+                    playerWriter.Write(player.Z);
+                    playerWriter.Write(player.entityId);
+                    playerWriter.Write(player.Health);
                 }
 
-                players.Add(e.Client, newPlayer);
+                using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
+                    e.Client.SendMessage(playerMessage, SendMode.Reliable);
+            }
+        }
 
-                using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
+        private void SpawnMessageReceived(object sender, MessageReceivedEventArgs e)
+        {
+            using (Message message = e.GetMessage() as Message)
+            {
+                if (message.Tag == Tags.SpawnPlayerTag) 
                 {
-                    foreach (Player player in players.Values)
+                    using (DarkRiftReader reader = message.GetReader())
                     {
-                        playerWriter.Write(player.ID);
-                        playerWriter.Write(player.X);
-                        playerWriter.Write(player.Y);
-                        playerWriter.Write(player.Z);
-                        playerWriter.Write(player.Radius);
-                        playerWriter.Write(player.ColorR);
-                        playerWriter.Write(player.ColorG);
-                        playerWriter.Write(player.ColorB);
+                        ushort entityId = reader.ReadUInt16();
+                        bool isNewPlayer = !players.ContainsKey(e.Client);
+
+                        if (isNewPlayer)
+                        {
+                            Player newPlayer = new Player(
+                               e.Client.ID, //Player id
+                               0, 10, 0, //Position x,y,z
+                               entityId,
+                               100f // Health
+                            );
+
+                            using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
+                            {
+                                newPlayerWriter.Write(newPlayer.ID);
+                                newPlayerWriter.Write(newPlayer.X);
+                                newPlayerWriter.Write(newPlayer.Y);
+                                newPlayerWriter.Write(newPlayer.Z);
+                                newPlayerWriter.Write(newPlayer.entityId);
+                                newPlayerWriter.Write(newPlayer.Health);
+
+                                using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
+                                {
+                                    foreach (IClient client in ClientManager.GetAllClients())
+                                        client.SendMessage(newPlayerMessage, SendMode.Reliable);
+                                }
+
+                                players.Add(e.Client, newPlayer);
+                                
+                            }
+                        }
                     }
 
-                    using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
-                        e.Client.SendMessage(playerMessage, SendMode.Reliable);
                 }
-
-                e.Client.MessageReceived += MovementMessageReceived;
             }
         }
 

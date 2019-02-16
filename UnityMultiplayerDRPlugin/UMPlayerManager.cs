@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using DarkRift;
 using DarkRift.Server;
+using UnityMultiplayerDRPlugin.DTOs;
 using UnityMultiplayerDRPlugin.Entities;
 
 namespace UnityMultiplayerDRPlugin
 {
     public class UMPlayerManager : Plugin
     {
-        const float MAP_WIDTH = 20;
         Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
 
 
@@ -25,7 +25,7 @@ namespace UnityMultiplayerDRPlugin
             {
                 if (message.Tag == Tags.MovePlayerTag)
                 {
-                    MovementMessageReceived(sender, e);
+                    PlayerUpdateMessageRecieved(sender, e);
                 } else if(message.Tag == Tags.SpawnPlayerTag)
                 {
                     SpawnMessageReceived(sender, e);
@@ -57,14 +57,17 @@ namespace UnityMultiplayerDRPlugin
             //Send exsisting players
             using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
             {
+                PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
                 foreach (Player player in players.Values)
                 {
-                    playerWriter.Write(player.ID);
-                    playerWriter.Write(player.X);
-                    playerWriter.Write(player.Y);
-                    playerWriter.Write(player.Z);
-                    playerWriter.Write(player.entityId);
-                    playerWriter.Write(player.Health);
+                    spawnData.ID = player.ID;
+                    spawnData.entityID = player.entityId;
+                    spawnData.x = player.X;
+                    spawnData.y = player.Y;
+                    spawnData.z = player.Z;
+                    spawnData.health = player.Health;
+
+                    playerWriter.Write(spawnData); // TODO: this may need to be created in the forloop
                 }
 
                 using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
@@ -80,7 +83,8 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        ushort entityId = reader.ReadUInt16();
+                        PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
+                        ushort entityId = clientSpawnData.entityID;
                         bool isNewPlayer = !players.ContainsKey(e.Client);
 
                         if (isNewPlayer)
@@ -94,12 +98,16 @@ namespace UnityMultiplayerDRPlugin
 
                             using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
                             {
-                                newPlayerWriter.Write(newPlayer.ID);
-                                newPlayerWriter.Write(newPlayer.X);
-                                newPlayerWriter.Write(newPlayer.Y);
-                                newPlayerWriter.Write(newPlayer.Z);
-                                newPlayerWriter.Write(newPlayer.entityId);
-                                newPlayerWriter.Write(newPlayer.Health);
+                                PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
+                                spawnData.ID = newPlayer.ID;
+                                spawnData.entityID = newPlayer.entityId;
+                                spawnData.x = newPlayer.X;
+                                spawnData.y = newPlayer.Y;
+                                spawnData.z = newPlayer.Z;
+                                spawnData.health = newPlayer.Health;
+
+                                
+                                newPlayerWriter.Write(spawnData);
 
                                 using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
                                 {
@@ -108,7 +116,6 @@ namespace UnityMultiplayerDRPlugin
                                 }
 
                                 players.Add(e.Client, newPlayer);
-                                
                             }
                         }
                     }
@@ -117,7 +124,7 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        private void MovementMessageReceived(object sender, MessageReceivedEventArgs e)
+        private void PlayerUpdateMessageRecieved(object sender, MessageReceivedEventArgs e)
         {
             using (Message message = e.GetMessage() as Message)
             {
@@ -125,22 +132,31 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        float newX = reader.ReadSingle();
-                        float newY = reader.ReadSingle();
-                        float newZ = reader.ReadSingle();
-
+                        PlayerUpdateClientDTO playerUpdateData = reader.ReadSerializable<PlayerUpdateClientDTO>();
                         Player player = players[e.Client];
 
-                        player.X = newX;
-                        player.Y = newY;
-                        player.Z = newZ;
+                        player.X = playerUpdateData.x;
+                        player.Y = playerUpdateData.y;
+                        player.Z = playerUpdateData.z;
+
+                        player.RX = playerUpdateData.rx;
+                        player.RY = playerUpdateData.ry;
+                        player.RZ = playerUpdateData.rz;
 
                         using (DarkRiftWriter writer = DarkRiftWriter.Create())
                         {
-                            writer.Write(player.ID);
-                            writer.Write(player.X);
-                            writer.Write(player.Y);
-                            writer.Write(player.Z);
+                            PlayerUpdateServerDTO playerUpdateOutData = new PlayerUpdateServerDTO();
+                            playerUpdateOutData.ID = player.ID;
+
+                            playerUpdateOutData.x = player.X;
+                            playerUpdateOutData.y = player.Y;
+                            playerUpdateOutData.z = player.Z;
+
+                            playerUpdateData.rx = player.RX;
+                            playerUpdateData.ry = player.RY;
+                            playerUpdateData.rz = player.RZ;
+
+                            writer.Write(playerUpdateOutData);
                             message.Serialize(writer);
                         }
 

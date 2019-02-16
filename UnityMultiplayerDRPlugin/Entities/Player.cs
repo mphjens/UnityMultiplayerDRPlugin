@@ -10,6 +10,9 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float X { get; set; }
         public float Y { get; set; }
         public float Z { get; set; }
+        public float RX { get; set; }
+        public float RY { get; set; }
+        public float RZ { get; set; }
         public ushort entityId { get; set; }
         public float Health = 100f;
 

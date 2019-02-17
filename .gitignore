@@ -12,6 +12,9 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+#Darkrift server logs
+DarkRift\ Server\ (.NET Framework)/[Ll]ogs/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

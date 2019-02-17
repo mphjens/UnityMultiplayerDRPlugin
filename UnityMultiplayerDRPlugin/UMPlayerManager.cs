@@ -23,7 +23,7 @@ namespace UnityMultiplayerDRPlugin
         {
             using (Message message = e.GetMessage() as Message)
             {
-                if (message.Tag == Tags.MovePlayerTag)
+                if (message.Tag == Tags.PlayerUpdateTag)
                 {
                     PlayerUpdateMessageRecieved(sender, e);
                 } else if(message.Tag == Tags.SpawnPlayerTag)
@@ -128,7 +128,7 @@ namespace UnityMultiplayerDRPlugin
         {
             using (Message message = e.GetMessage() as Message)
             {
-                if (message.Tag == Tags.MovePlayerTag)
+                if (message.Tag == Tags.PlayerUpdateTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
@@ -152,16 +152,20 @@ namespace UnityMultiplayerDRPlugin
                             playerUpdateOutData.y = player.Y;
                             playerUpdateOutData.z = player.Z;
 
-                            playerUpdateData.rx = player.RX;
-                            playerUpdateData.ry = player.RY;
-                            playerUpdateData.rz = player.RZ;
+                            playerUpdateOutData.rx = player.RX;
+                            playerUpdateOutData.ry = player.RY;
+                            playerUpdateOutData.rz = player.RZ;
 
                             writer.Write(playerUpdateOutData);
-                            message.Serialize(writer);
+
+                            using (Message playerUpdateMessage = Message.Create(Tags.PlayerUpdateTag, writer))
+                            {
+                                foreach (IClient c in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                    c.SendMessage(playerUpdateMessage, e.SendMode);
+                            }
                         }
 
-                        foreach (IClient c in ClientManager.GetAllClients().Where(x => x != e.Client))
-                            c.SendMessage(message, e.SendMode);
+                        
                     }
                 }
             }

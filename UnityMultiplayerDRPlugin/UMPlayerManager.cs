@@ -10,7 +10,7 @@ namespace UnityMultiplayerDRPlugin
 {
     public class UMPlayerManager : Plugin
     {
-        Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
+        public Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
 
 
         public UMPlayerManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
@@ -143,6 +143,10 @@ namespace UnityMultiplayerDRPlugin
                         player.RY = playerUpdateData.ry;
                         player.RZ = playerUpdateData.rz;
 
+                        player.VX = playerUpdateData.vx;
+                        player.VY = playerUpdateData.vy;
+                        player.VZ = playerUpdateData.vz;
+
                         using (DarkRiftWriter writer = DarkRiftWriter.Create())
                         {
                             PlayerUpdateServerDTO playerUpdateOutData = new PlayerUpdateServerDTO();
@@ -155,6 +159,10 @@ namespace UnityMultiplayerDRPlugin
                             playerUpdateOutData.rx = player.RX;
                             playerUpdateOutData.ry = player.RY;
                             playerUpdateOutData.rz = player.RZ;
+
+                            playerUpdateOutData.vx = player.VX;
+                            playerUpdateOutData.vy = player.VY;
+                            playerUpdateOutData.vz = player.VZ;
 
                             writer.Write(playerUpdateOutData);
 

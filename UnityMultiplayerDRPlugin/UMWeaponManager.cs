@@ -10,16 +10,44 @@ namespace UnityMultiplayerDRPlugin
 {
     public class UMWeaponManager : Plugin
     {
+        UMPlayerManager playerManager;
 
         public UMWeaponManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
             ClientManager.ClientConnected += ClientConnected;
-            ClientManager.ClientDisconnected += ClientDisconnected; ;
+            ClientManager.ClientDisconnected += ClientDisconnected; 
         }
 
         private void ClientConnected(object sender, ClientConnectedEventArgs e)
         {
+            if(playerManager == null)
+            {
+                playerManager = PluginManager.GetPluginByType<UMPlayerManager>();
+            }
+
+            Console.WriteLine("Weaponmanager registered player");
             e.Client.MessageReceived += Client_MessageReceived;
+
+            foreach(Player p in playerManager.players.Values)
+            {
+                if(p.WeaponEntityID != ushort.MaxValue)
+                {
+                    using (DarkRiftWriter weaponSwitchWriter = DarkRiftWriter.Create())
+                    {
+
+                        WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
+                        switchData.playerId = e.Client.ID;
+                        switchData.weaponEntityId = p.WeaponEntityID;
+                        switchData.weaponSlot = 0;
+
+                        weaponSwitchWriter.Write(switchData);
+                        using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
+                        {
+                            e.Client.SendMessage(fireStartMessage, SendMode.Reliable);
+                        }
+                    }
+                }
+            }
         }
 
         private void Client_MessageReceived(object sender, MessageReceivedEventArgs e)
@@ -28,10 +56,12 @@ namespace UnityMultiplayerDRPlugin
             {
                 if (message.Tag == Tags.WeaponFireStartTag || message.Tag == Tags.WeaponFireEndTag || message.Tag == Tags.WeaponActionTag)
                 {
+                    Console.WriteLine("Got weapon update message");
                     WeaponUpdateMessageRecieved(sender, e);
                 }
                 else if (message.Tag == Tags.WeaponSwitchTag)
                 {
+                    Console.WriteLine("Got weapon switch message");
                     WeaponSwitchMessageRecieved(sender, e);
                 }
             }
@@ -45,17 +75,17 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>();
+                        WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>(); 
 
                         using (DarkRiftWriter weaponSwitchWriter = DarkRiftWriter.Create())
                         {
+
                             WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
                             switchData.playerId = e.Client.ID;
                             switchData.weaponEntityId = data.weaponEntityId;
                             switchData.weaponSlot = data.weaponSlot;
 
                             weaponSwitchWriter.Write(switchData);
-
                             using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
                             {
                                 foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
@@ -75,7 +105,7 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WeaponFireClientDTO data = reader.ReadSerializable<WeaponFireClientDTO>();
+                        WeaponFireClientDTO data = reader.ReadSerializable<WeaponFireClientDTO>(); //Read the weapon fire dto off the stack
 
                         using (DarkRiftWriter fireStartWriter = DarkRiftWriter.Create())
                         {
@@ -84,6 +114,11 @@ namespace UnityMultiplayerDRPlugin
                             fireData.fireNum = data.fireNum;
 
                             fireStartWriter.Write(fireData);
+                            int extrastart = reader.Position;
+                            int extralength = reader.Length - reader.Position;
+                            byte[] rawExtradata = reader.ReadRaw(extralength);
+                            fireStartWriter.WriteRaw(rawExtradata, 0, extralength); //Write the extra data from the message
+                            //TODO: Think about security implications of sending raw data from client to all clients
 
                             using (Message fireStartMessage = Message.Create(message.Tag, fireStartWriter)) //Repeat the incoming tagname as all message bodies are the same
                             {

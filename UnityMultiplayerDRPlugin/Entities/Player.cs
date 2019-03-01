@@ -4,7 +4,7 @@ using System.Text;
 
 namespace UnityMultiplayerDRPlugin.Entities
 {
-    class Player
+    public class Player
     {
         public ushort ID { get; set; }
         public float X { get; set; }
@@ -13,8 +13,13 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float RX { get; set; }
         public float RY { get; set; }
         public float RZ { get; set; }
+        public float VX { get; set; }
+        public float VY { get; set; }
+        public float VZ { get; set; }
         public ushort entityId { get; set; }
         public float Health = 100f;
+
+        public ushort WeaponEntityID = ushort.MaxValue;
 
         public Player(ushort ID, float x, float y, float z, ushort entityId, float health)
         {

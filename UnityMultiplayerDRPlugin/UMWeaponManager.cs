@@ -64,6 +64,43 @@ namespace UnityMultiplayerDRPlugin
                     Console.WriteLine("Got weapon switch message");
                     WeaponSwitchMessageRecieved(sender, e);
                 }
+                else if (message.Tag == Tags.DamageHurtableTag)
+                {
+                    Console.WriteLine("Got damage hurtable message");
+                    DamageHurtableRecieved(sender, e);
+                }
+            }
+        }
+
+        public void DamageHurtableRecieved(object sender, MessageReceivedEventArgs e)
+        {
+            using (Message message = e.GetMessage() as Message)
+            {
+                if (message.Tag == Tags.DamageHurtableTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        DamageHurtableClientDTO data = reader.ReadSerializable<DamageHurtableClientDTO>();
+
+                        using (DarkRiftWriter damageHurtableWriter = DarkRiftWriter.Create())
+                        {
+
+                            DamageHurtableServerDTO damageHurtableData = new DamageHurtableServerDTO();
+                            damageHurtableData.InstagatorID = e.Client.ID;
+                            damageHurtableData.VictimID = data.VictimID;
+                            damageHurtableData.damage = data.damage;
+
+                            Console.WriteLine($"{damageHurtableData.InstagatorID} damaging {damageHurtableData.VictimID} for {damageHurtableData.damage} hp");
+
+                            damageHurtableWriter.Write(damageHurtableData);
+                            using (Message damageHurtableMessage = Message.Create(Tags.DamageHurtableTag, damageHurtableWriter))
+                            {
+                                foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                    client.SendMessage(damageHurtableMessage, SendMode.Reliable);
+                            }
+                        }
+                    }
+                }
             }
         }
 

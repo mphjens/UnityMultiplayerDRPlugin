@@ -17,18 +17,18 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float VY { get; set; }
         public float VZ { get; set; }
         public ushort entityId { get; set; }
-        public float Health = 100f;
+        public float MaxHealth = 100f;
 
         public ushort WeaponEntityID = ushort.MaxValue;
 
-        public Player(ushort ID, float x, float y, float z, ushort entityId, float health)
+        public Player(ushort ID, float x, float y, float z, ushort entityId, float maxhealth)
         {
             this.ID = ID;
             this.X = x;
             this.Y = y;
             this.Z = z;
             this.entityId = entityId;
-            this.Health = health;
+            this.MaxHealth = maxhealth;
         }
     }
 }

@@ -26,7 +26,8 @@ namespace UnityMultiplayerDRPlugin
                 if (message.Tag == Tags.PlayerUpdateTag)
                 {
                     PlayerUpdateMessageRecieved(sender, e);
-                } else if(message.Tag == Tags.SpawnPlayerTag)
+                }
+                else if (message.Tag == Tags.SpawnPlayerTag)
                 {
                     SpawnMessageReceived(sender, e);
                 }
@@ -65,7 +66,7 @@ namespace UnityMultiplayerDRPlugin
                     spawnData.x = player.X;
                     spawnData.y = player.Y;
                     spawnData.z = player.Z;
-                    spawnData.health = player.Health;
+                    spawnData.health = player.MaxHealth;
 
                     playerWriter.Write(spawnData); // TODO: this may need to be created in the forloop
                 }
@@ -79,46 +80,61 @@ namespace UnityMultiplayerDRPlugin
         {
             using (Message message = e.GetMessage() as Message)
             {
-                if (message.Tag == Tags.SpawnPlayerTag) 
+                if (message.Tag == Tags.SpawnPlayerTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
                         PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
                         ushort entityId = clientSpawnData.entityID;
                         bool isNewPlayer = !players.ContainsKey(e.Client);
+                        Player player;
+
+                        //TODO: request to spawn at position
 
                         if (isNewPlayer)
                         {
-                            Player newPlayer = new Player(
+                            player = new Player(
                                e.Client.ID, //Player id
                                0, 10, 0, //Position x,y,z
                                entityId,
-                               100f // Health
+                               100f // MaxHealth
                             );
 
-                            using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
+                            players.Add(e.Client, player);
+                        }
+                        else
+                        {   
+                            player = players[e.Client];
+
+                            player.X = 0;
+                            player.Y = 10;
+                            player.Z = 0;
+                        }
+
+                        Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}");
+
+                        using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
+                        {
+                            PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
+                            spawnData.ID = player.ID;
+                            spawnData.entityID = player.entityId;
+                            spawnData.x = player.X;
+                            spawnData.y = player.Y;
+                            spawnData.z = player.Z;
+                            spawnData.health = player.MaxHealth;
+
+                            newPlayerWriter.Write(spawnData);
+
+                            using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
                             {
-                                PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
-                                spawnData.ID = newPlayer.ID;
-                                spawnData.entityID = newPlayer.entityId;
-                                spawnData.x = newPlayer.X;
-                                spawnData.y = newPlayer.Y;
-                                spawnData.z = newPlayer.Z;
-                                spawnData.health = newPlayer.Health;
-
-                                
-                                newPlayerWriter.Write(spawnData);
-
-                                using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
-                                {
-                                    foreach (IClient client in ClientManager.GetAllClients())
-                                        client.SendMessage(newPlayerMessage, SendMode.Reliable);
-                                }
-
-                                players.Add(e.Client, newPlayer);
+                                foreach (IClient client in ClientManager.GetAllClients())
+                                    client.SendMessage(newPlayerMessage, SendMode.Reliable);
                             }
+
+                            
                         }
                     }
+
 
                 }
             }
@@ -173,7 +189,7 @@ namespace UnityMultiplayerDRPlugin
                             }
                         }
 
-                        
+
                     }
                 }
             }

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using UnityMultiplayerDRPlugin.DTOs;
 using UnityMultiplayerDRPlugin.Entities;
 
 namespace UnityMultiplayerDRPlugin
@@ -64,7 +65,15 @@ namespace UnityMultiplayerDRPlugin
                         this.SpawnEntity(newEntityId, newState, hasPhysics, newX, newY, newZ);
                     }
                 }
-
+                if(message.Tag == Tags.SpawnProceduralShapeEntityTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        SpawnProceduralShapeEntityClientDTO data = reader.ReadSerializable<SpawnProceduralShapeEntityClientDTO>();
+                        Console.WriteLine("Got spawn procedural message");
+                        this.SpawnProceduralShapeEntity(data);
+                    }
+                }
                 if (message.Tag == Tags.DespawnEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
@@ -126,17 +135,41 @@ namespace UnityMultiplayerDRPlugin
 
         public void BroadcastEntities(IClient client)
         {
+            //TODO: don't loop over the entities twice here
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
             {
+                
                 foreach (UMEntity entity in World.Entities.Values)
                 {
-                    entity.WriteSpawn(entityWriter);
+                    if (!entity.isProceduralShape)
+                    {
+                        entity.WriteSpawn(entityWriter);
+                    }
                 }
 
-                using (Message spawnWorldMessage = Message.Create(Tags.SpawnEntityTag, entityWriter))
+                using (Message spawnWorldEntitiesMessage = Message.Create(Tags.SpawnEntityTag, entityWriter))
                 {
-                    client.SendMessage(spawnWorldMessage, SendMode.Reliable);
+                    client.SendMessage(spawnWorldEntitiesMessage, SendMode.Reliable);
                 }
+
+            }
+
+            using (DarkRiftWriter proceduralEntityWriter = DarkRiftWriter.Create())
+            {
+
+                foreach (UMEntity entity in World.Entities.Values)
+                {
+                    if (entity.isProceduralShape)
+                    {
+                        proceduralEntityWriter.Write(((UMProceduralShapeEntity)entity).getServerSpawnDTO(entity.id));
+                    }
+                }
+
+                using (Message spawnWorldProceduralEntitiesMessage = Message.Create(Tags.SpawnProceduralShapeEntityTag, proceduralEntityWriter))
+                {
+                    client.SendMessage(spawnWorldProceduralEntitiesMessage, SendMode.Reliable);
+                }
+
             }
         }
 
@@ -224,7 +257,30 @@ namespace UnityMultiplayerDRPlugin
 
         }
 
+        public uint SpawnProceduralShapeEntity(SpawnProceduralShapeEntityClientDTO data)
+        {
+            World.entityIdCounter++;
+            uint newID = World.entityIdCounter;
+            UMProceduralShapeEntity newProceduralEntity = new UMProceduralShapeEntity(newID, data);
+            newProceduralEntity.spawnData = data;
+            newProceduralEntity.isProceduralShape = true;
 
+            World.Entities.Add(newID, newProceduralEntity);
+
+            using (DarkRiftWriter proceduralEntityWriter = DarkRiftWriter.Create())
+            {
+                proceduralEntityWriter.Write(newProceduralEntity.getServerSpawnDTO(newID));
+
+                using (Message spawnEntityMsg = Message.Create(Tags.SpawnProceduralShapeEntityTag, proceduralEntityWriter))
+                {
+                    foreach (IClient c in ClientManager.GetAllClients())
+                        c.SendMessage(spawnEntityMsg, SendMode.Reliable);
+                }
+
+            }
+
+            return newID;
+        }
 
         public uint SpawnEntity(ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
             float rotX = 0, float rotY = 0, float rotZ = 0,

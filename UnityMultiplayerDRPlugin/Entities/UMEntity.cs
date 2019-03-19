@@ -10,6 +10,7 @@ namespace UnityMultiplayerDRPlugin.Entities
         public bool hasPhysics;
         public ushort entityId;
         public ushort state;
+        public bool isProceduralShape;
 
         public float X { get; set; }
         public float Y { get; set; }

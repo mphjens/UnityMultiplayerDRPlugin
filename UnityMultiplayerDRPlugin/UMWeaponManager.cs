@@ -95,7 +95,7 @@ namespace UnityMultiplayerDRPlugin
                             damageHurtableWriter.Write(damageHurtableData);
                             using (Message damageHurtableMessage = Message.Create(Tags.DamageHurtableTag, damageHurtableWriter))
                             {
-                                foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                foreach (IClient client in ClientManager.GetAllClients())
                                     client.SendMessage(damageHurtableMessage, SendMode.Reliable);
                             }
                         }
@@ -112,11 +112,14 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>(); 
+                        WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>();
+                        Player cPlayer = playerManager.players[e.Client];
+                        cPlayer.WeaponEntityID = data.weaponEntityId;
+
+
 
                         using (DarkRiftWriter weaponSwitchWriter = DarkRiftWriter.Create())
                         {
-
                             WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
                             switchData.playerId = e.Client.ID;
                             switchData.weaponEntityId = data.weaponEntityId;

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace UnityMultiplayerDRPlugin.Entities
 {
-    class UMEntity
+    public class UMEntity
     {
         public uint id;
         public bool hasPhysics;
@@ -27,6 +27,8 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float velocityX { get; set; }
         public float velocityY { get; set; }
         public float velocityZ { get; set; }
+
+        public WorldData world;
 
         public void WriteSpawn(DarkRift.DarkRiftWriter writer)
         {

@@ -14,36 +14,43 @@ namespace UnityMultiplayerDRPlugin
     class UMEntityManager : Plugin
     {
 
-        IClient PhysicsHost;
-
-        WorldData World = new WorldData();
+        //WorldData World = new WorldData();
+        UMWorldManager WorldManager;
         
         public UMEntityManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
-            ClientManager.ClientConnected += ClientConnected;
-            ClientManager.ClientDisconnected += ClientDisconnected;
+
+            //ClientManager.ClientConnected += ClientConnected;
+            //ClientManager.ClientDisconnected += ClientDisconnected;
         }
 
-        private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
+        //Gets called before the clients are removed from the world's client list 
+        public void UnRegisterPlayer(object sender, ClientDisconnectedEventArgs e)
         {
-            if (e.Client == PhysicsHost)
+            WorldData World = WorldManager.clients[e.Client].World;
+            if (e.Client == World.PhysicsHost)
             {
-                this.PhysicsHost = null;
-                if (ClientManager.Count > 0)
+                World.PhysicsHost = null;
+                if (World.GetClients().Count() > 1)
                 {
-                    this.SetPhysicsHost(ClientManager.GetAllClients()[0]);
+                    this.SetPhysicsHost(World.GetClients().Where(x => x != e.Client).First());
                 }
             }
         }
 
-        private void ClientConnected(object sender, ClientConnectedEventArgs e)
+        public void RegisterPlayer(object sender, MessageReceivedEventArgs e, WorldData World)
         {
-            if (PhysicsHost == null)
+            if(WorldManager == null)
+            {
+                WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
+            }
+
+            if (WorldManager.clients[e.Client].World.PhysicsHost == null)
             {
                 this.SetPhysicsHost(e.Client);
             }
 
-            BroadcastEntities(e.Client);
+            BroadcastEntities(e.Client, World);
             e.Client.MessageReceived += Client_MessageReceived;
         }
 
@@ -51,6 +58,7 @@ namespace UnityMultiplayerDRPlugin
         {
             using (Message message = e.GetMessage() as Message)
             {
+                WorldData World = WorldManager.clients[e.Client].World;
                 if (message.Tag == Tags.SpawnEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
@@ -62,7 +70,7 @@ namespace UnityMultiplayerDRPlugin
                         float newY = reader.ReadSingle();
                         float newZ = reader.ReadSingle();
 
-                        this.SpawnEntity(newEntityId, newState, hasPhysics, newX, newY, newZ);
+                        this.SpawnEntity(World, newEntityId, newState, hasPhysics, newX, newY, newZ);
                     }
                 }
                 if(message.Tag == Tags.SpawnProceduralShapeEntityTag)
@@ -71,7 +79,7 @@ namespace UnityMultiplayerDRPlugin
                     {
                         SpawnProceduralShapeEntityClientDTO data = reader.ReadSerializable<SpawnProceduralShapeEntityClientDTO>();
                         Console.WriteLine("Got spawn procedural message");
-                        this.SpawnProceduralShapeEntity(data);
+                        this.SpawnProceduralShapeEntity(World, data);
                     }
                 }
                 if (message.Tag == Tags.DespawnEntityTag)
@@ -79,7 +87,7 @@ namespace UnityMultiplayerDRPlugin
                     using (DarkRiftReader reader = message.GetReader())
                     {
                         uint id = reader.ReadUInt32();
-                        this.DespawnEntity(id);
+                        this.DespawnEntity(World, id);
                     }
                 }
 
@@ -90,7 +98,7 @@ namespace UnityMultiplayerDRPlugin
                         uint id = reader.ReadUInt32();
                         ushort newState = reader.ReadUInt16();
 
-                        SetState(id, newState);
+                        SetState(World, id, newState);
                     }
                 }
 
@@ -111,14 +119,14 @@ namespace UnityMultiplayerDRPlugin
                         float sy = reader.ReadSingle();
                         float sz = reader.ReadSingle();
 
-                        SetTransform(id, x, y, z, rx, ry, rz, sx, sy, sz);
+                        SetTransform(World, id, x, y, z, rx, ry, rz, sx, sy, sz);
                     }
                 }
 
                 if (message.Tag == Tags.PhysicsUpdateEntityTag)
                 {
-                    if (e.Client == PhysicsHost)
-                        PhysicsUpdate(sender, e);
+                    if (e.Client == WorldManager.clients[e.Client].World.PhysicsHost)
+                        PhysicsUpdate(sender, e, WorldManager.clients[e.Client].World);
                 }
                 if (message.Tag == Tags.SetPhysicsEntityTag)
                 {
@@ -127,13 +135,13 @@ namespace UnityMultiplayerDRPlugin
                         uint id = reader.ReadUInt32();
                         bool hasPhysics = reader.ReadBoolean();
                         bool isKinematic = reader.ReadBoolean();
-                        setPhysics(id, hasPhysics, isKinematic);
+                        setPhysics(World, id, hasPhysics, isKinematic);
                     }
                 }
             }
         }
 
-        public void BroadcastEntities(IClient client)
+        public void BroadcastEntities(IClient client, WorldData World)
         {
             //TODO: don't loop over the entities twice here
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
@@ -173,7 +181,7 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        public void PhysicsUpdate(object sender, MessageReceivedEventArgs e)
+        public void PhysicsUpdate(object sender, MessageReceivedEventArgs e, WorldData World)
         {
             using (DarkRiftReader reader = e.GetMessage().GetReader())
             {
@@ -227,14 +235,14 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message physUpdateMessage = Message.Create(Tags.PhysicsUpdateEntityTag, entityPhysWriter))
                     {
-                        foreach (IClient c in ClientManager.GetAllClients().Where(cl => cl != PhysicsHost))
+                        foreach (IClient c in World.GetClients().Where(cl => cl != World.PhysicsHost))
                             c.SendMessage(physUpdateMessage, SendMode.Unreliable);
                     }
                 }
             }
         }
 
-        public void setPhysics(uint id, bool hasPhysics, bool isKinematic)
+        public void setPhysics(WorldData World, uint id, bool hasPhysics, bool isKinematic)
         {
 
             if (World.Entities.ContainsKey(id))
@@ -249,7 +257,7 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message physUpdateMessage = Message.Create(Tags.SetPhysicsEntityTag, physSettingsWriter))
                     {
-                        foreach (IClient c in ClientManager.GetAllClients())
+                        foreach (IClient c in World.GetClients())
                             c.SendMessage(physUpdateMessage, SendMode.Unreliable);
                     }
                 }
@@ -257,7 +265,7 @@ namespace UnityMultiplayerDRPlugin
 
         }
 
-        public uint SpawnProceduralShapeEntity(SpawnProceduralShapeEntityClientDTO data)
+        public uint SpawnProceduralShapeEntity(WorldData World, SpawnProceduralShapeEntityClientDTO data)
         {
             World.entityIdCounter++;
             uint newID = World.entityIdCounter;
@@ -273,7 +281,7 @@ namespace UnityMultiplayerDRPlugin
 
                 using (Message spawnEntityMsg = Message.Create(Tags.SpawnProceduralShapeEntityTag, proceduralEntityWriter))
                 {
-                    foreach (IClient c in ClientManager.GetAllClients())
+                    foreach (IClient c in World.GetClients())
                         c.SendMessage(spawnEntityMsg, SendMode.Reliable);
                 }
 
@@ -282,12 +290,13 @@ namespace UnityMultiplayerDRPlugin
             return newID;
         }
 
-        public uint SpawnEntity(ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
+        public uint SpawnEntity(WorldData World, ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
             float rotX = 0, float rotY = 0, float rotZ = 0,
             float scaleX = 1, float scaleY = 1, float scaleZ = 1)
         {
             UMEntity newEntity = new UMEntity();
 
+            newEntity.world = World;
             newEntity.entityId = entityId;
             newEntity.state = state;
             newEntity.hasPhysics = hasPhysics;
@@ -315,7 +324,7 @@ namespace UnityMultiplayerDRPlugin
 
                 using (Message spawnEntityMsg = Message.Create(Tags.SpawnEntityTag, entityWriter))
                 {
-                    foreach (IClient c in ClientManager.GetAllClients())
+                    foreach (IClient c in World.GetClients())
                         c.SendMessage(spawnEntityMsg, SendMode.Reliable);
                 }
 
@@ -325,7 +334,7 @@ namespace UnityMultiplayerDRPlugin
             return newEntity.id;
         }
 
-        public void DespawnEntity(uint id)
+        public void DespawnEntity(WorldData World, uint id)
         {
             if (World.Entities.ContainsKey(id))
             {
@@ -337,7 +346,7 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message despawnEntityMsg = Message.Create(Tags.DespawnEntityTag, entityWriter))
                     {
-                        foreach (IClient c in ClientManager.GetAllClients())
+                        foreach (IClient c in World.GetClients())
                             c.SendMessage(despawnEntityMsg, SendMode.Reliable);
                     }
 
@@ -349,7 +358,7 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        public bool SetState(uint id, ushort state)
+        public bool SetState(WorldData World, uint id, ushort state)
         {
             if (World.Entities.ContainsKey(id))
             {
@@ -362,7 +371,7 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message setStateMessage = Message.Create(Tags.SetStateEntityTag, entityStateWriter))
                     {
-                        foreach (IClient c in ClientManager.GetAllClients())
+                        foreach (IClient c in World.GetClients())
                             c.SendMessage(setStateMessage, SendMode.Reliable);
                     }
 
@@ -385,7 +394,7 @@ namespace UnityMultiplayerDRPlugin
                 using (Message setHostMessage = Message.Create(Tags.SetEntityPhysicsHost, entityStateWriter))
                 {
                     client.SendMessage(setHostMessage, SendMode.Reliable);
-                    this.PhysicsHost = client;
+                    WorldManager.clients[client].World.PhysicsHost = client;
                 }
 
             }
@@ -394,7 +403,7 @@ namespace UnityMultiplayerDRPlugin
 
 
 
-        public void SetTransform(uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
+        public void SetTransform(WorldData World, uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
         {
             if (World.Entities.ContainsKey(id))
             {
@@ -425,7 +434,7 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message setStateMessage = Message.Create(Tags.TransformEntityTag, entityTransformWriter))
                     {
-                        foreach (IClient c in ClientManager.GetAllClients())
+                        foreach (IClient c in World.GetClients())
                             c.SendMessage(setStateMessage, SendMode.Unreliable);
 
                     }
@@ -444,52 +453,63 @@ namespace UnityMultiplayerDRPlugin
 
         public override Command[] Commands => new Command[]
         {
-            new Command("clear", "Despawns all entities", "", ClearCommandHandler),
+            new Command("clear", "Despawns all entities from all worlds", "", ClearCommandHandler),
             new Command("save", "Saves the world as a json file", "", SaveCommandHandler),
             new Command("load", "Loads a world", "", LoadCommandHandler)
         };
         
         void SaveCommandHandler(object sender, CommandEventArgs e)
         {
-            string json = JsonConvert.SerializeObject(World);
-            if (!File.Exists(World.Name+".json"))
+            foreach(WorldData World in WorldManager.Worlds)
             {
-                File.Create(World.Name + ".json").Close();
+                string json = JsonConvert.SerializeObject(World);
+                if (!File.Exists(World.WorldName + ".json"))
+                {
+                    File.Create(World.WorldName + ".json").Close();
+                }
+                StreamWriter writer = new StreamWriter(World.WorldName + ".json");
+                writer.Write(json);
+                writer.Close();
             }
-            StreamWriter writer = new StreamWriter(World.Name + ".json");
-            writer.Write(json);
-            writer.Close();
+            
         }
 
         void LoadCommandHandler(object sender, CommandEventArgs e)
         {
-            string filename = e.Arguments[1] + ".json";
-            if (File.Exists(filename))
+            foreach (WorldData World in WorldManager.Worlds)
             {
-                StreamReader reader = new StreamReader(filename);
-                string json = reader.ReadToEnd();
-                reader.Close();
+                if(World.WorldName == e.Arguments[1])
+                {
+                    string filename = e.Arguments[1] + ".json";
+                    if (File.Exists(filename))
+                    {
+                        StreamReader reader = new StreamReader(filename);
+                        string json = reader.ReadToEnd();
+                        reader.Close();
 
-                WorldData world = JsonConvert.DeserializeObject<WorldData>(json);
-                this.World = world;
-                foreach (IClient c in ClientManager.GetAllClients())
-                    BroadcastEntities(c);
+                        WorldData world = JsonConvert.DeserializeObject<WorldData>(json);
+                        
+                        foreach (IClient c in world.GetClients())
+                            BroadcastEntities(c, world);
+                    }
+                    else
+                    {
+                        Console.WriteLine(filename + " not found");
+                    }
+                }
+                
             }
-            else
-            {
-                Console.WriteLine(filename + " not found");
-            }
-            
-            
-            
         }
 
         void ClearCommandHandler(object sender, CommandEventArgs e)
         {
-            uint[] keys = World.Entities.Keys.ToArray();
-            foreach (uint key in keys)
+            foreach (WorldData World in WorldManager.Worlds)
             {
-                this.DespawnEntity(key);
+                uint[] keys = World.Entities.Keys.ToArray();
+                foreach (uint key in keys)
+                {
+                    this.DespawnEntity(World, key);
+                }
             }
         }
     }

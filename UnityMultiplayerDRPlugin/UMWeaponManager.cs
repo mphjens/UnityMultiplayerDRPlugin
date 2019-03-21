@@ -11,24 +11,32 @@ namespace UnityMultiplayerDRPlugin
     public class UMWeaponManager : Plugin
     {
         UMPlayerManager playerManager;
+        UMWorldManager worldManager;
 
         public UMWeaponManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
-            ClientManager.ClientConnected += ClientConnected;
-            ClientManager.ClientDisconnected += ClientDisconnected; 
+            //ClientManager.ClientConnected += ClientConnected;
+            //ClientManager.ClientDisconnected += ClientDisconnected; 
         }
 
-        private void ClientConnected(object sender, ClientConnectedEventArgs e)
+        public void RegisterClient(object sender, MessageReceivedEventArgs e)
         {
             if(playerManager == null)
             {
                 playerManager = PluginManager.GetPluginByType<UMPlayerManager>();
             }
 
+            if (worldManager == null)
+            {
+                worldManager = PluginManager.GetPluginByType<UMWorldManager>();
+            }
+
+
             Console.WriteLine("Weaponmanager registered player");
             e.Client.MessageReceived += Client_MessageReceived;
 
-            foreach(Player p in playerManager.players.Values)
+            WorldData World = worldManager.clients[e.Client].World;
+            foreach (Player p in World.players.Values)
             {
                 if(p.WeaponEntityID != ushort.MaxValue)
                 {
@@ -80,6 +88,7 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
+                        WorldData World = worldManager.clients[e.Client].World;
                         DamageHurtableClientDTO data = reader.ReadSerializable<DamageHurtableClientDTO>();
 
                         using (DarkRiftWriter damageHurtableWriter = DarkRiftWriter.Create())
@@ -95,7 +104,7 @@ namespace UnityMultiplayerDRPlugin
                             damageHurtableWriter.Write(damageHurtableData);
                             using (Message damageHurtableMessage = Message.Create(Tags.DamageHurtableTag, damageHurtableWriter))
                             {
-                                foreach (IClient client in ClientManager.GetAllClients())
+                                foreach (IClient client in World.GetClients())
                                     client.SendMessage(damageHurtableMessage, SendMode.Reliable);
                             }
                         }
@@ -112,8 +121,9 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
+                        WorldData World = worldManager.clients[e.Client].World;
                         WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>();
-                        Player cPlayer = playerManager.players[e.Client];
+                        Player cPlayer = World.players[e.Client];
                         cPlayer.WeaponEntityID = data.weaponEntityId;
 
 
@@ -128,7 +138,7 @@ namespace UnityMultiplayerDRPlugin
                             weaponSwitchWriter.Write(switchData);
                             using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
                             {
-                                foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                foreach (IClient client in World.GetClients().Where(x => x != e.Client))
                                     client.SendMessage(fireStartMessage, SendMode.Reliable);
                             }
                         }
@@ -162,7 +172,7 @@ namespace UnityMultiplayerDRPlugin
 
                             using (Message fireStartMessage = Message.Create(message.Tag, fireStartWriter)) //Repeat the incoming tagname as all message bodies are the same
                             {
-                                foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                foreach (IClient client in worldManager.clients[e.Client].World.GetClients().Where(x => x != e.Client))
                                     client.SendMessage(fireStartMessage, SendMode.Reliable);
                             }
                         }
@@ -171,20 +181,20 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
+        public void UnRegisterPlayer(object sender, ClientDisconnectedEventArgs e)
         {
             //Stop all firemodes for client (when sending ushort.MaxValue, by convention all firemodes are stopped)
-            using (DarkRiftWriter fireStartWriter = DarkRiftWriter.Create())
+            using (DarkRiftWriter fireEndWriter = DarkRiftWriter.Create())
             {
                 WeaponFireServerDTO fireData = new WeaponFireServerDTO();
                 fireData.playerID = e.Client.ID;
                 fireData.fireNum = ushort.MaxValue;
 
-                fireStartWriter.Write(fireData);
+                fireEndWriter.Write(fireData);
 
-                using (Message fireStartMessage = Message.Create(Tags.WeaponFireEndTag, fireStartWriter))
+                using (Message fireStartMessage = Message.Create(Tags.WeaponFireEndTag, fireEndWriter))
                 {
-                    foreach (IClient client in ClientManager.GetAllClients().Where(x => x != e.Client))
+                    foreach (IClient client in worldManager.clients[e.Client].World.GetClients().Where(x => x != e.Client))
                         client.SendMessage(fireStartMessage, SendMode.Reliable);
                 }
             }
@@ -192,7 +202,7 @@ namespace UnityMultiplayerDRPlugin
 
         public override bool ThreadSafe => false;
 
-        public override Version Version => new Version(0, 0, 1);
+        public override Version Version => new Version(0, 0, 2);
 
     }
 }

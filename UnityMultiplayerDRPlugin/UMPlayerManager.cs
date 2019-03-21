@@ -10,13 +10,17 @@ namespace UnityMultiplayerDRPlugin
 {
     public class UMPlayerManager : Plugin
     {
-        public Dictionary<IClient, Player> players = new Dictionary<IClient, Player>();
 
+        UMWorldManager WorldManager;
+
+        UMWeaponManager WeaponManager;
+        
 
         public UMPlayerManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
-            ClientManager.ClientConnected += ClientConnected;
-            ClientManager.ClientDisconnected += ClientDisconnected;
+            //This is now handled by Register/Unregister Player, the Connected/Disconnected Events are hooked up in UMWorldManager which call these methods.
+            //ClientManager.ClientConnected += ClientConnected;
+            //ClientManager.ClientDisconnected += ClientDisconnected;
         }
 
         private void Client_MessageReceived(object sender, MessageReceivedEventArgs e)
@@ -35,9 +39,12 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
+        public void UnregisterPlayer(object sender, ClientDisconnectedEventArgs e)
         {
-            players.Remove(e.Client);
+            WorldData world = WorldManager.clients[e.Client].World;
+            world.players.Remove(e.Client);
+
+            WeaponManager.UnRegisterPlayer(sender, e);
 
             using (DarkRiftWriter writer = DarkRiftWriter.Create())
             {
@@ -45,21 +52,32 @@ namespace UnityMultiplayerDRPlugin
 
                 using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
                 {
-                    foreach (IClient client in ClientManager.GetAllClients())
+                    foreach (IClient client in world.GetClients())
                         client.SendMessage(message, SendMode.Reliable);
                 }
             }
         }
 
-        private void ClientConnected(object sender, ClientConnectedEventArgs e)
+        public void RegisterPlayer(object sender, MessageReceivedEventArgs e, WorldData World)
         {
+            if(WorldManager == null)
+            {
+                WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
+            }
+            if(WeaponManager == null)
+            {
+                WeaponManager = PluginManager.GetPluginByType<UMWeaponManager>();
+            }
+
+            WorldManager.clients[e.Client].World = World;
+
             e.Client.MessageReceived += Client_MessageReceived;
 
             //Send exsisting players
             using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
             {
                 PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
-                foreach (Player player in players.Values)
+                foreach (Player player in World.players.Values)
                 {
                     spawnData.ID = player.ID;
                     spawnData.entityID = player.entityId;
@@ -68,12 +86,15 @@ namespace UnityMultiplayerDRPlugin
                     spawnData.z = player.Z;
                     spawnData.health = player.MaxHealth;
 
-                    playerWriter.Write(spawnData); // TODO: this may need to be created in the forloop
+                    playerWriter.Write(spawnData);
                 }
 
                 using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
                     e.Client.SendMessage(playerMessage, SendMode.Reliable);
             }
+
+            //Register WeaponManager
+            WeaponManager.RegisterClient(sender, e);
         }
 
         private void SpawnMessageReceived(object sender, MessageReceivedEventArgs e)
@@ -84,9 +105,10 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
+                        WorldData World = WorldManager.clients[e.Client].World;
                         PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
                         ushort entityId = clientSpawnData.entityID;
-                        bool isNewPlayer = !players.ContainsKey(e.Client);
+                        bool isNewPlayer = !World.players.ContainsKey(e.Client);
                         Player player;
 
                         //TODO: request to spawn at position
@@ -100,11 +122,11 @@ namespace UnityMultiplayerDRPlugin
                                100f // MaxHealth
                             );
 
-                            players.Add(e.Client, player);
+                            World.players.Add(e.Client, player);
                         }
                         else
                         {   
-                            player = players[e.Client];
+                            player = World.players[e.Client];
 
                             player.X = 0;
                             player.Y = 10;
@@ -127,7 +149,7 @@ namespace UnityMultiplayerDRPlugin
 
                             using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
                             {
-                                foreach (IClient client in ClientManager.GetAllClients())
+                                foreach (IClient client in World.GetClients())
                                     client.SendMessage(newPlayerMessage, SendMode.Reliable);
                             }
 
@@ -148,8 +170,9 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
+                        WorldData World = WorldManager.clients[e.Client].World;
                         PlayerUpdateClientDTO playerUpdateData = reader.ReadSerializable<PlayerUpdateClientDTO>();
-                        Player player = players[e.Client];
+                        Player player = World.players[e.Client];
 
                         player.X = playerUpdateData.x;
                         player.Y = playerUpdateData.y;
@@ -180,11 +203,13 @@ namespace UnityMultiplayerDRPlugin
                             playerUpdateOutData.vy = player.VY;
                             playerUpdateOutData.vz = player.VZ;
 
+                            playerUpdateOutData.triggerQueue = playerUpdateData.triggerQueue;
+
                             writer.Write(playerUpdateOutData);
 
                             using (Message playerUpdateMessage = Message.Create(Tags.PlayerUpdateTag, writer))
                             {
-                                foreach (IClient c in ClientManager.GetAllClients().Where(x => x != e.Client))
+                                foreach (IClient c in World.GetClients().Where(x => x != e.Client))
                                     c.SendMessage(playerUpdateMessage, e.SendMode);
                             }
                         }
@@ -197,7 +222,7 @@ namespace UnityMultiplayerDRPlugin
 
         public override bool ThreadSafe => false;
 
-        public override Version Version => new Version(0, 0, 1);
+        public override Version Version => new Version(0, 0, 2);
 
     }
 }

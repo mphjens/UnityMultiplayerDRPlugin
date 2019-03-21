@@ -19,7 +19,7 @@ namespace UnityMultiplayerDRPlugin
             //ClientManager.ClientDisconnected += ClientDisconnected; 
         }
 
-        public void RegisterClient(object sender, MessageReceivedEventArgs e)
+        public void RegisterClient(IClient client)
         {
             if(playerManager == null)
             {
@@ -33,9 +33,9 @@ namespace UnityMultiplayerDRPlugin
 
 
             Console.WriteLine("Weaponmanager registered player");
-            e.Client.MessageReceived += Client_MessageReceived;
+            client.MessageReceived += Client_MessageReceived;
 
-            WorldData World = worldManager.clients[e.Client].World;
+            WorldData World = worldManager.clients[client].World;
             foreach (Player p in World.players.Values)
             {
                 if(p.WeaponEntityID != ushort.MaxValue)
@@ -44,14 +44,14 @@ namespace UnityMultiplayerDRPlugin
                     {
 
                         WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
-                        switchData.playerId = e.Client.ID;
+                        switchData.playerId = client.ID;
                         switchData.weaponEntityId = p.WeaponEntityID;
                         switchData.weaponSlot = 0;
 
                         weaponSwitchWriter.Write(switchData);
                         using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
                         {
-                            e.Client.SendMessage(fireStartMessage, SendMode.Reliable);
+                            client.SendMessage(fireStartMessage, SendMode.Reliable);
                         }
                     }
                 }
@@ -181,21 +181,21 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        public void UnRegisterPlayer(object sender, ClientDisconnectedEventArgs e)
+        public void UnRegisterClient(IClient client)
         {
             //Stop all firemodes for client (when sending ushort.MaxValue, by convention all firemodes are stopped)
             using (DarkRiftWriter fireEndWriter = DarkRiftWriter.Create())
             {
                 WeaponFireServerDTO fireData = new WeaponFireServerDTO();
-                fireData.playerID = e.Client.ID;
+                fireData.playerID = client.ID;
                 fireData.fireNum = ushort.MaxValue;
 
                 fireEndWriter.Write(fireData);
 
                 using (Message fireStartMessage = Message.Create(Tags.WeaponFireEndTag, fireEndWriter))
                 {
-                    foreach (IClient client in worldManager.clients[e.Client].World.GetClients().Where(x => x != e.Client))
-                        client.SendMessage(fireStartMessage, SendMode.Reliable);
+                    foreach (IClient _client in worldManager.clients[client].World.GetClients().Where(x => x != client))
+                        _client.SendMessage(fireStartMessage, SendMode.Reliable);
                 }
             }
         }

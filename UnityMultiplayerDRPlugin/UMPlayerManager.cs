@@ -39,26 +39,26 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        public void UnregisterPlayer(object sender, ClientDisconnectedEventArgs e)
+        public void UnregisterClient(IClient client)
         {
-            WorldData world = WorldManager.clients[e.Client].World;
-            world.players.Remove(e.Client);
+            WorldData world = WorldManager.clients[client].World;
+            world.players.Remove(client);
 
-            WeaponManager.UnRegisterPlayer(sender, e);
+            WeaponManager.UnRegisterClient(client);
 
             using (DarkRiftWriter writer = DarkRiftWriter.Create())
             {
-                writer.Write(e.Client.ID);
+                writer.Write(client.ID);
 
                 using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
                 {
-                    foreach (IClient client in world.GetClients())
-                        client.SendMessage(message, SendMode.Reliable);
+                    foreach (IClient _client in world.GetClients())
+                        _client.SendMessage(message, SendMode.Reliable);
                 }
             }
         }
 
-        public void RegisterPlayer(object sender, MessageReceivedEventArgs e, WorldData World)
+        public void RegisterClient(IClient client, WorldData World)
         {
             if(WorldManager == null)
             {
@@ -69,9 +69,9 @@ namespace UnityMultiplayerDRPlugin
                 WeaponManager = PluginManager.GetPluginByType<UMWeaponManager>();
             }
 
-            WorldManager.clients[e.Client].World = World;
+            WorldManager.clients[client].World = World;
 
-            e.Client.MessageReceived += Client_MessageReceived;
+            client.MessageReceived += Client_MessageReceived;
 
             //Send exsisting players
             using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
@@ -90,11 +90,11 @@ namespace UnityMultiplayerDRPlugin
                 }
 
                 using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
-                    e.Client.SendMessage(playerMessage, SendMode.Reliable);
+                    client.SendMessage(playerMessage, SendMode.Reliable);
             }
 
             //Register WeaponManager
-            WeaponManager.RegisterClient(sender, e);
+            WeaponManager.RegisterClient(client);
         }
 
         private void SpawnMessageReceived(object sender, MessageReceivedEventArgs e)

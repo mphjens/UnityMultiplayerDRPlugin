@@ -25,33 +25,33 @@ namespace UnityMultiplayerDRPlugin
         }
 
         //Gets called before the clients are removed from the world's client list 
-        public void UnRegisterPlayer(object sender, ClientDisconnectedEventArgs e)
+        public void UnregisterClient(IClient client)
         {
-            WorldData World = WorldManager.clients[e.Client].World;
-            if (e.Client == World.PhysicsHost)
+            WorldData World = WorldManager.clients[client].World;
+            if (client == World.PhysicsHost)
             {
                 World.PhysicsHost = null;
                 if (World.GetClients().Count() > 1)
                 {
-                    this.SetPhysicsHost(World.GetClients().Where(x => x != e.Client).First());
+                    this.SetPhysicsHost(World.GetClients().Where(x => x != client).First());
                 }
             }
         }
 
-        public void RegisterPlayer(object sender, MessageReceivedEventArgs e, WorldData World)
+        public void RegisterClient(IClient client, WorldData World)
         {
             if(WorldManager == null)
             {
                 WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
             }
 
-            if (WorldManager.clients[e.Client].World.PhysicsHost == null)
+            if (WorldManager.clients[client].World.PhysicsHost == null)
             {
-                this.SetPhysicsHost(e.Client);
+                this.SetPhysicsHost(client);
             }
 
-            BroadcastEntities(e.Client, World);
-            e.Client.MessageReceived += Client_MessageReceived;
+            BroadcastEntities(client, World);
+            client.MessageReceived += Client_MessageReceived;
         }
 
         private void Client_MessageReceived(object sender, MessageReceivedEventArgs e)

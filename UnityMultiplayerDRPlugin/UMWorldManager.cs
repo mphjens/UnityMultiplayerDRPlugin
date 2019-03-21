@@ -45,8 +45,8 @@ namespace UnityMultiplayerDRPlugin
 
         private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)
         {
-            entityManager.UnRegisterPlayer(sender, e);
-            playerManager.UnregisterPlayer(sender, e);
+            entityManager.UnregisterClient(e.Client);
+            playerManager.UnregisterClient(e.Client);
 
             this.clients.Remove(e.Client);
         }
@@ -58,6 +58,16 @@ namespace UnityMultiplayerDRPlugin
                 if (message.Tag == Tags.JoinWorldMessage)
                 {
                     this.OnJoinWorld(sender, e);
+                }
+
+                if (message.Tag == Tags.GetWorldsMessage)
+                {
+                    this.OnGetWorlds(sender, e);
+                }
+
+                if (message.Tag == Tags.CreateWorldMessage)
+                {
+                    this.OnCreateWorld(sender, e);
                 }
             }
         }
@@ -142,10 +152,18 @@ namespace UnityMultiplayerDRPlugin
                 {
                     if (world.WorldName == data.WorldName)
                     {
+                        //If the player is already in a world, leave it first.
+                        if(this.clients[e.Client].World != null)
+                        {
+                            playerManager.UnregisterClient(e.Client);
+                            entityManager.UnregisterClient(e.Client);
+                            this.clients[e.Client].World = null;
+                        }
+
                         //Register the player to the world
                         this.clients[e.Client].World = world;
-                        playerManager.RegisterPlayer(sender, e, world);
-                        entityManager.RegisterPlayer(sender, e, world);
+                        playerManager.RegisterClient(e.Client, world);
+                        entityManager.RegisterClient(e.Client, world);
 
                         using (DarkRiftWriter responseWriter = DarkRiftWriter.Create())
                         {
@@ -178,6 +196,7 @@ namespace UnityMultiplayerDRPlugin
             }
 
         }
+
 
         public override bool ThreadSafe => false;
 

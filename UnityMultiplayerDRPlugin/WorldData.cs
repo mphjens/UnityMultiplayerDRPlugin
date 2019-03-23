@@ -10,6 +10,7 @@ namespace UnityMultiplayerDRPlugin
     {
         public string WorldName { get; private set; }
         public ushort SceneEntityID { get; private set; }
+        public string SceneName { get; private set; }
 
         public Dictionary<uint, UMEntity> Entities { get; private set; } 
         public uint entityIdCounter = 0;
@@ -17,9 +18,11 @@ namespace UnityMultiplayerDRPlugin
         public Dictionary<IClient, Player> players { get; private set; }
         public IClient PhysicsHost;
 
-        public WorldData(string WorldName, ushort SceneEntityID)
+        public WorldData(string WorldName, ushort SceneEntityID, string SceneName)
         {
             this.WorldName = WorldName;
+            this.SceneName = SceneName;
+            this.SceneEntityID = SceneEntityID;
             this.Entities = new Dictionary<uint, UMEntity>();
             this.players = new Dictionary<IClient, Player>();
         }

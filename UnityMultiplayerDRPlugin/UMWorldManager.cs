@@ -20,6 +20,7 @@ namespace UnityMultiplayerDRPlugin
 
         public UMWorldManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
+            clients = new Dictionary<IClient, UMClient>();
             ClientManager.ClientConnected += ClientConnected;
             ClientManager.ClientDisconnected += ClientDisconnected;
         }
@@ -94,16 +95,18 @@ namespace UnityMultiplayerDRPlugin
                     CreateWorldServerDTO response = new CreateWorldServerDTO();
                     if(GetWorldByName(data.WorldName) == null)
                     {
-                        WorldData NewWorld = new WorldData(data.WorldName, data.SceneEntityID);
+                        WorldData NewWorld = new WorldData(data.WorldName, data.SceneEntityID, data.SceneName);
                         this.Worlds.Add(NewWorld);
 
                         response.Success = true;
                         response.Message = $"{data.WorldName} Created";
+                        Console.WriteLine(response.Message);
                     }
                     else
                     {
                         response.Success = false;
                         response.Message = $"{data.WorldName} already exists";
+                        Console.WriteLine(response.Message);
                     }
                     
 
@@ -126,6 +129,8 @@ namespace UnityMultiplayerDRPlugin
                     WorldData world = Worlds[i];
                     WorldDTO worldDto = new WorldDTO();
                     worldDto.WorldName = world.WorldName;
+                    worldDto.NrPlayers = world.players.Count;
+                    worldDto.MaxNrPlayers = 0;
                     worldDto.SceneEntityID = world.SceneEntityID;
 
                     worldDtos[i] = worldDto;
@@ -170,6 +175,7 @@ namespace UnityMultiplayerDRPlugin
                             JoinWorldServerDTO response = new JoinWorldServerDTO();
                             response.Success = true;
                             response.Message = "Registered client to world";
+                            Console.WriteLine(response.Message);
 
                             responseWriter.Write(response);
                             using (Message responseMessage = Message.Create(Tags.JoinWorldMessage, responseWriter))
@@ -186,6 +192,7 @@ namespace UnityMultiplayerDRPlugin
                     JoinWorldServerDTO response = new JoinWorldServerDTO();
                     response.Success = false;
                     response.Message = $"No world with name: {data.WorldName}";
+                    Console.WriteLine(response.Message);
 
                     responseWriter.Write(response);
                     using (Message responseMessage = Message.Create(Tags.JoinWorldMessage, responseWriter))

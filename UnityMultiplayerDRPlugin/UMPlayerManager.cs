@@ -41,20 +41,27 @@ namespace UnityMultiplayerDRPlugin
 
         public void UnregisterClient(IClient client)
         {
-            WorldData world = WorldManager.clients[client].World;
-            world.players.Remove(client);
-
-            WeaponManager.UnRegisterClient(client);
-
-            using (DarkRiftWriter writer = DarkRiftWriter.Create())
+            if (WorldManager.clients.ContainsKey(client))
             {
-                writer.Write(client.ID);
-
-                using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
+                WorldData world = WorldManager.clients[client].World;
+                if(world != null)
                 {
-                    foreach (IClient _client in world.GetClients())
-                        _client.SendMessage(message, SendMode.Reliable);
+                    world.players.Remove(client);
+
+                    WeaponManager.UnRegisterClient(client);
+
+                    using (DarkRiftWriter writer = DarkRiftWriter.Create())
+                    {
+                        writer.Write(client.ID);
+
+                        using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
+                        {
+                            foreach (IClient _client in world.GetClients())
+                                _client.SendMessage(message, SendMode.Reliable);
+                        }
+                    }
                 }
+
             }
         }
 

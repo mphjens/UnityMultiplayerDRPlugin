@@ -88,9 +88,9 @@ namespace UnityMultiplayerDRPlugin
                 {
                     spawnData.ID = player.ID;
                     spawnData.entityID = player.entityId;
-                    spawnData.x = player.X;
-                    spawnData.y = player.Y;
-                    spawnData.z = player.Z;
+                    spawnData.position.x = player.X;
+                    spawnData.position.y = player.Y;
+                    spawnData.position.z = player.Z;
                     spawnData.health = player.MaxHealth;
 
                     playerWriter.Write(spawnData);
@@ -134,22 +134,22 @@ namespace UnityMultiplayerDRPlugin
                         else
                         {   
                             player = World.players[e.Client];
-
+                            player.entityId = clientSpawnData.entityID;
                             player.X = 0;
                             player.Y = 10;
                             player.Z = 0;
                         }
 
-                        Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}");
+                        Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}, entityID { player.entityId }");
 
                         using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
                         {
                             PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
                             spawnData.ID = player.ID;
                             spawnData.entityID = player.entityId;
-                            spawnData.x = player.X;
-                            spawnData.y = player.Y;
-                            spawnData.z = player.Z;
+                            spawnData.position.x = player.X;
+                            spawnData.position.y = player.Y;
+                            spawnData.position.z = player.Z;
                             spawnData.health = player.MaxHealth;
 
                             newPlayerWriter.Write(spawnData);

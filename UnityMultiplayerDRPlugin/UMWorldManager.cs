@@ -131,6 +131,7 @@ namespace UnityMultiplayerDRPlugin
                     worldDto.WorldName = world.WorldName;
                     worldDto.NrPlayers = world.players.Count;
                     worldDto.MaxNrPlayers = 0;
+                    worldDto.SceneName = world.SceneName;
                     worldDto.SceneEntityID = world.SceneEntityID;
 
                     worldDtos[i] = worldDto;

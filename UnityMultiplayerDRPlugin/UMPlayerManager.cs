@@ -147,9 +147,8 @@ namespace UnityMultiplayerDRPlugin
                             PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
                             spawnData.ID = player.ID;
                             spawnData.entityID = player.entityId;
-                            spawnData.position.x = player.X;
-                            spawnData.position.y = player.Y;
-                            spawnData.position.z = player.Z;
+                            spawnData.position = new UMVector3(player.X, player.Y, player.Z); // TODO: Store player position in UMVector3
+                            spawnData.rotation = new UMVector3(player.RX, player.RY, player.RZ); // TODO: Store player rotation in UMVector3
                             spawnData.health = player.MaxHealth;
 
                             newPlayerWriter.Write(spawnData);

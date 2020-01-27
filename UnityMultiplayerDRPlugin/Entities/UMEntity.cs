@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using UnityMultiplayerDRPlugin.DTOs;
 
 namespace UnityMultiplayerDRPlugin.Entities
 {
@@ -29,22 +30,21 @@ namespace UnityMultiplayerDRPlugin.Entities
         public float velocityZ { get; set; }
 
         public WorldData world;
+        public bool ShouldSerializeworld() { return false; }//This tells newtonsoft.json to not serialize the field
 
         public void WriteSpawn(DarkRift.DarkRiftWriter writer)
         {
-            writer.Write(this.id);
-            writer.Write(this.entityId);
-            writer.Write(this.state);
-            writer.Write(this.hasPhysics);
-            writer.Write(this.X);
-            writer.Write(this.Y);
-            writer.Write(this.Z);
-            writer.Write(this.rotX);
-            writer.Write(this.rotY);
-            writer.Write(this.rotZ);
-            writer.Write(this.scaleX);
-            writer.Write(this.scaleY);
-            writer.Write(this.scaleZ);
+            SpawnEntityServerDTO dto = new SpawnEntityServerDTO();
+            dto.ID = id;
+            dto.EntityId = entityId;
+            dto.State = state;
+            dto.hasPhysics = hasPhysics;
+            dto.position = new UMVector3(X, Y, Z);
+            dto.rotation = new UMVector3(rotX, rotY, rotZ);
+            dto.scale = new UMVector3(scaleX, scaleY, scaleZ);
+
+
+            writer.Write(dto);
             
         }
     }

@@ -249,23 +249,22 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
-        public void setPhysics(WorldData World, uint id, bool hasPhysics, bool isKinematic)
+        public void setPhysics(WorldData World, SetPhysicsDTO inData)
         {
 
-            if (World.Entities.ContainsKey(id))
+            if (World.Entities.ContainsKey(inData.Id))
             {
-                World.Entities[id].hasPhysics = hasPhysics;
+                World.Entities[inData.Id].hasPhysics = inData.HasPhysics;
 
                 using (DarkRiftWriter physSettingsWriter = DarkRiftWriter.Create())
                 {
-                    physSettingsWriter.Write(id);
-                    physSettingsWriter.Write(hasPhysics);
-                    physSettingsWriter.Write(isKinematic);
+                    // TODO: Anti cheat goes here..
+                    physSettingsWriter.Write(inData);
 
-                    using (Message physUpdateMessage = Message.Create(Tags.SetPhysicsEntityTag, physSettingsWriter))
+                    using (Message setPhysMessage = Message.Create(Tags.SetPhysicsEntityTag, physSettingsWriter))
                     {
                         foreach (IClient c in World.GetClients())
-                            c.SendMessage(physUpdateMessage, SendMode.Unreliable);
+                            c.SendMessage(setPhysMessage, SendMode.Reliable);
                     }
                 }
             }

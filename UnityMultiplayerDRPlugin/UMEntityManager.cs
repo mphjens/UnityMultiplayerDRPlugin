@@ -66,14 +66,18 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        ushort newEntityId = reader.ReadUInt16();
-                        ushort newState = reader.ReadUInt16();
-                        bool hasPhysics = reader.ReadBoolean();
-                        float newX = reader.ReadSingle();
-                        float newY = reader.ReadSingle();
-                        float newZ = reader.ReadSingle();
+                        SpawnEntityClientDTO data = reader.ReadSerializable<SpawnEntityClientDTO>();
 
-                        this.SpawnEntity(World, newEntityId, newState, hasPhysics, newX, newY, newZ);
+                        this.SpawnEntity(World, data);
+
+                        //ushort newEntityId = reader.ReadUInt16();
+                        //ushort newState = reader.ReadUInt16();
+                        //bool hasPhysics = reader.ReadBoolean();
+                        //float newX = reader.ReadSingle();
+                        //float newY = reader.ReadSingle();
+                        //float newZ = reader.ReadSingle();
+
+                        //this.SpawnEntity(World, newEntityId, newState, hasPhysics, newX, newY, newZ);
                     }
                 }
                 if(message.Tag == Tags.SpawnProceduralShapeEntityTag)
@@ -293,6 +297,14 @@ namespace UnityMultiplayerDRPlugin
             return newID;
         }
 
+        public uint SpawnEntity(WorldData World, SpawnEntityClientDTO dto)
+        {
+            return this.SpawnEntity(World, dto.EntityId, dto.State, dto.hasPhysics,
+                             dto.position.x, dto.position.y, dto.position.z,
+                             dto.rotation.x, dto.rotation.y, dto.rotation.z,
+                             dto.scale.x, dto.scale.y, dto.scale.z);
+        }
+
         public uint SpawnEntity(WorldData World, ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
             float rotX = 0, float rotY = 0, float rotZ = 0,
             float scaleX = 1, float scaleY = 1, float scaleZ = 1)
@@ -491,7 +503,9 @@ namespace UnityMultiplayerDRPlugin
                         reader.Close();
 
                         WorldData world = JsonConvert.DeserializeObject<WorldData>(json);
-                        
+                        World.copyFields(world); //Sets the fields with the loaded data.
+
+                        //Rebroadcast the entities
                         foreach (IClient c in world.GetClients())
                             BroadcastEntities(c, world);
                     }

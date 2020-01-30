@@ -139,10 +139,9 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        uint id = reader.ReadUInt32();
-                        bool hasPhysics = reader.ReadBoolean();
-                        bool isKinematic = reader.ReadBoolean();
-                        setPhysics(World, id, hasPhysics, isKinematic);
+                        //Console.WriteLine("recieved physmessage");
+                        SetPhysicsDTO data = reader.ReadSerializable<SetPhysicsDTO>();
+                        setPhysics(World, data);
                     }
                 }
             }
@@ -263,6 +262,7 @@ namespace UnityMultiplayerDRPlugin
 
                     using (Message setPhysMessage = Message.Create(Tags.SetPhysicsEntityTag, physSettingsWriter))
                     {
+                        Console.WriteLine("setphysics relayed");
                         foreach (IClient c in World.GetClients())
                             c.SendMessage(setPhysMessage, SendMode.Reliable);
                     }

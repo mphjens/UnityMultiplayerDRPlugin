@@ -15,6 +15,9 @@ namespace UnityMultiplayerDRPlugin
         public Dictionary<uint, UMEntity> Entities { get; private set; } 
         public uint entityIdCounter = 0;
 
+        public Dictionary<ushort, Player> AIPlayers { get; private set; }
+        public ushort aiIDCounter = 128; // the first 128 ids are reserved for players
+
         public Dictionary<IClient, Player> players { get; private set; }
         public bool ShouldSerializeplayers() { return false; } //This tells newtonsoft.json to not serialize the field
 
@@ -29,6 +32,7 @@ namespace UnityMultiplayerDRPlugin
             this.SceneEntityID = SceneEntityID;
             this.Entities = new Dictionary<uint, UMEntity>();
             this.players = new Dictionary<IClient, Player>();
+            this.AIPlayers = new Dictionary<ushort, Player>();
         }
 
         public void copyFields(WorldData data)
@@ -38,6 +42,7 @@ namespace UnityMultiplayerDRPlugin
             this.SceneName = data.SceneName;
             this.Entities = data.Entities;
             this.entityIdCounter = data.entityIdCounter;
+            this.aiIDCounter = data.aiIDCounter;
         }
 
         public IEnumerable<IClient> GetClients()

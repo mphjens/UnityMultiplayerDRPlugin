@@ -14,7 +14,7 @@ namespace UnityMultiplayerDRPlugin
         UMWorldManager WorldManager;
 
         UMWeaponManager WeaponManager;
-        
+
 
         public UMPlayerManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
@@ -35,6 +35,11 @@ namespace UnityMultiplayerDRPlugin
                 {
                     SpawnMessageReceived(sender, e);
                 }
+                else if (message.Tag == Tags.DespawnPlayerTag)
+                {
+                    ushort id = message.GetReader().ReadUInt16();
+                    DespawnPlayer(WorldManager.clients[e.Client].World, id);
+                }
 
             }
         }
@@ -44,34 +49,44 @@ namespace UnityMultiplayerDRPlugin
             if (WorldManager.clients.ContainsKey(client))
             {
                 WorldData world = WorldManager.clients[client].World;
-                if(world != null)
+                if (world != null)
                 {
-                    world.players.Remove(client);
-
+                    
                     WeaponManager.UnRegisterClient(client);
+                    DespawnPlayer(world, world.players[client].ID);
 
-                    using (DarkRiftWriter writer = DarkRiftWriter.Create())
-                    {
-                        writer.Write(client.ID);
-
-                        using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
-                        {
-                            foreach (IClient _client in world.GetClients())
-                                _client.SendMessage(message, SendMode.Reliable);
-                        }
-                    }
+                    world.players.Remove(client);
                 }
 
             }
         }
 
+        public void DespawnPlayer(WorldData world, ushort id)
+        {
+            if (world.AIPlayers.ContainsKey(id))
+            {
+                world.AIPlayers.Remove(id);
+            }
+
+            using (DarkRiftWriter writer = DarkRiftWriter.Create())
+            {
+                writer.Write(id);
+
+                using (Message message = Message.Create(Tags.DespawnPlayerTag, writer))
+                {
+                    foreach (IClient _client in world.GetClients())
+                        _client.SendMessage(message, SendMode.Reliable);
+                }
+            }
+        }
+
         public void RegisterClient(IClient client, WorldData World)
         {
-            if(WorldManager == null)
+            if (WorldManager == null)
             {
                 WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
             }
-            if(WeaponManager == null)
+            if (WeaponManager == null)
             {
                 WeaponManager = PluginManager.GetPluginByType<UMWeaponManager>();
             }
@@ -83,16 +98,16 @@ namespace UnityMultiplayerDRPlugin
             //Send exsisting players
             using (DarkRiftWriter playerWriter = DarkRiftWriter.Create())
             {
-                PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
+                //PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
                 foreach (Player player in World.players.Values)
                 {
-                    spawnData.ID = player.ID;
-                    spawnData.entityID = player.entityId;
-                    spawnData.position = new UMVector3(player.X, player.Y, player.Z); // TODO: Store player position in UMVector3
-                    spawnData.rotation = new UMVector3(player.RX, player.RY, player.RZ); // TODO: Store player rotation in UMVector3
-                    spawnData.health = player.MaxHealth;
+                    this.WritePlayerSpawnData(playerWriter, player);
+                }
 
-                    playerWriter.Write(spawnData);
+
+                foreach (Player player in World.AIPlayers.Values)
+                {
+                    this.WritePlayerSpawnData(playerWriter, player);
                 }
 
                 using (Message playerMessage = Message.Create(Tags.SpawnPlayerTag, playerWriter))
@@ -114,43 +129,45 @@ namespace UnityMultiplayerDRPlugin
                         WorldData World = WorldManager.clients[e.Client].World;
                         PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
                         ushort entityId = clientSpawnData.entityID;
-                        bool isNewPlayer = !World.players.ContainsKey(e.Client);
+                        bool isNewPlayer = clientSpawnData.isAI ? !World.AIPlayers.ContainsKey(clientSpawnData.PlayerID) : !World.players.ContainsKey(e.Client);
                         Player player;
 
-                        //TODO: request to spawn at position
+                        //TODO: use spawn rotation and health 
 
                         if (isNewPlayer)
                         {
                             player = new Player(
-                               e.Client.ID, //Player id
-                               0, 10, 0, //Position x,y,z
+                               clientSpawnData.isAI ? World.aiIDCounter : e.Client.ID, //Player id
+                               clientSpawnData.position.x, clientSpawnData.position.y, clientSpawnData.position.z, //Position x,y,z TODO: make this a UMVector3
                                entityId,
-                               100f // MaxHealth
+                               100f, // MaxHealth
+                               clientSpawnData.isAI
                             );
 
-                            World.players.Add(e.Client, player);
+                            if (clientSpawnData.isAI)
+                            {
+                                World.AIPlayers.Add(World.aiIDCounter, player);
+                                World.aiIDCounter++;
+                            }
+                            else
+                            {
+                                World.players.Add(e.Client, player);
+                            }
                         }
                         else
-                        {   
-                            player = World.players[e.Client];
+                        {
+                            player = clientSpawnData.isAI ? World.AIPlayers[clientSpawnData.PlayerID] : World.players[e.Client];
                             player.entityId = clientSpawnData.entityID;
-                            player.X = 0;
-                            player.Y = 10;
-                            player.Z = 0;
+                            player.X = clientSpawnData.position.x;
+                            player.Y = clientSpawnData.position.y;
+                            player.Z = clientSpawnData.position.z;
                         }
 
                         Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}, entityID { player.entityId }");
 
                         using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
                         {
-                            PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
-                            spawnData.ID = player.ID;
-                            spawnData.entityID = player.entityId;
-                            spawnData.position = new UMVector3(player.X, player.Y, player.Z); // TODO: Store player position in UMVector3
-                            spawnData.rotation = new UMVector3(player.RX, player.RY, player.RZ); // TODO: Store player rotation in UMVector3
-                            spawnData.health = player.MaxHealth;
-
-                            newPlayerWriter.Write(spawnData);
+                            this.WritePlayerSpawnData(newPlayerWriter, player);
 
                             using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
                             {
@@ -158,13 +175,26 @@ namespace UnityMultiplayerDRPlugin
                                     client.SendMessage(newPlayerMessage, SendMode.Reliable);
                             }
 
-                            
+
                         }
                     }
 
 
                 }
             }
+        }
+
+        private void WritePlayerSpawnData(DarkRiftWriter writer, Player player)
+        {
+            PlayerSpawnServerDTO spawnData = new PlayerSpawnServerDTO();
+            spawnData.ID = player.ID;
+            spawnData.entityID = player.entityId;
+            spawnData.position = new UMVector3(player.X, player.Y, player.Z); // TODO: Store player position in UMVector3
+            spawnData.rotation = new UMVector3(player.RX, player.RY, player.RZ); // TODO: Store player rotation in UMVector3
+            spawnData.health = player.MaxHealth;
+            spawnData.isAI = player.IsAI;
+
+            writer.Write(spawnData);
         }
 
         private void PlayerUpdateMessageRecieved(object sender, MessageReceivedEventArgs e)
@@ -177,7 +207,17 @@ namespace UnityMultiplayerDRPlugin
                     {
                         WorldData World = WorldManager.clients[e.Client].World;
                         PlayerUpdateClientDTO playerUpdateData = reader.ReadSerializable<PlayerUpdateClientDTO>();
-                        Player player = World.players[e.Client];
+
+                        Player player;
+                        if (playerUpdateData.PlayerID < 128 ) 
+                        {
+                            player = World.players[e.Client];
+                        }
+                        else
+                        {
+                            player = World.AIPlayers[playerUpdateData.PlayerID];
+                        }
+                        
 
                         player.X = playerUpdateData.x;
                         player.Y = playerUpdateData.y;

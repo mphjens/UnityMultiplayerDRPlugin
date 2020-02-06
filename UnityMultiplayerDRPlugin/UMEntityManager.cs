@@ -1,4 +1,5 @@
-﻿using DarkRift;
+﻿using Assets.Recover.Scripts.Assembly_CSharp.Core.Entity;
+using DarkRift;
 using DarkRift.Server;
 using Newtonsoft.Json;
 using System;
@@ -16,7 +17,7 @@ namespace UnityMultiplayerDRPlugin
 
         //WorldData World = new WorldData();
         UMWorldManager WorldManager;
-        
+
         public UMEntityManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
 
@@ -43,7 +44,7 @@ namespace UnityMultiplayerDRPlugin
 
         public void RegisterClient(IClient client, WorldData World)
         {
-            if(WorldManager == null)
+            if (WorldManager == null)
             {
                 WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
             }
@@ -66,83 +67,239 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        SpawnEntityClientDTO data = reader.ReadSerializable<SpawnEntityClientDTO>();
+                        while (reader.Position < reader.Length)
+                        {
+                            SpawnEntityClientDTO data = reader.ReadSerializable<SpawnEntityClientDTO>();
 
-                        this.SpawnEntity(World, data);
-
-                        //ushort newEntityId = reader.ReadUInt16();
-                        //ushort newState = reader.ReadUInt16();
-                        //bool hasPhysics = reader.ReadBoolean();
-                        //float newX = reader.ReadSingle();
-                        //float newY = reader.ReadSingle();
-                        //float newZ = reader.ReadSingle();
-
-                        //this.SpawnEntity(World, newEntityId, newState, hasPhysics, newX, newY, newZ);
+                            this.SpawnEntity(World, data);
+                        }
                     }
                 }
-                if(message.Tag == Tags.SpawnProceduralShapeEntityTag)
+                else
+                if (message.Tag == Tags.SpawnProceduralShapeEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        SpawnProceduralShapeEntityClientDTO data = reader.ReadSerializable<SpawnProceduralShapeEntityClientDTO>();
-                        Console.WriteLine("Got spawn procedural message");
-                        this.SpawnProceduralShapeEntity(World, data);
+                        while (reader.Position < reader.Length)
+                        {
+                            SpawnProceduralShapeEntityClientDTO data = reader.ReadSerializable<SpawnProceduralShapeEntityClientDTO>();
+                            Console.WriteLine("Got spawn procedural message");
+                            this.SpawnProceduralShapeEntity(World, data);
+                        }
                     }
                 }
+                else
                 if (message.Tag == Tags.DespawnEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        uint id = reader.ReadUInt32();
-                        this.DespawnEntity(World, id);
+                        while (reader.Position < reader.Length)
+                        {
+                            uint id = reader.ReadUInt32();
+                            this.DespawnEntity(World, id);
+                        }
                     }
                 }
+                else
+                if (message.Tag == Tags.SetEntityParentTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        while (reader.Position < reader.Length)
+                        {
+                            SetParentDTO data = reader.ReadSerializable<SetParentDTO>();
 
+                            SetParent(World, data);
+                        }
+                    }
+                }
+                else
                 if (message.Tag == Tags.SetStateEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        uint id = reader.ReadUInt32();
-                        ushort newState = reader.ReadUInt16();
+                        while (reader.Position < reader.Length)
+                        {
+                            uint id = reader.ReadUInt32();
+                            ushort newState = reader.ReadUInt16();
 
-                        SetState(World, id, newState);
+                            SetState(World, id, newState);
+                        }
                     }
                 }
-
+                else
                 if (message.Tag == Tags.TransformEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        uint id = reader.ReadUInt32();
-                        float x = reader.ReadSingle();
-                        float y = reader.ReadSingle();
-                        float z = reader.ReadSingle();
+                        while (reader.Position < reader.Length)
+                        {
+                            uint id = reader.ReadUInt32();
+                            float x = reader.ReadSingle();
+                            float y = reader.ReadSingle();
+                            float z = reader.ReadSingle();
 
-                        float rx = reader.ReadSingle();
-                        float ry = reader.ReadSingle();
-                        float rz = reader.ReadSingle();
+                            float rx = reader.ReadSingle();
+                            float ry = reader.ReadSingle();
+                            float rz = reader.ReadSingle();
 
-                        float sx = reader.ReadSingle();
-                        float sy = reader.ReadSingle();
-                        float sz = reader.ReadSingle();
+                            float sx = reader.ReadSingle();
+                            float sy = reader.ReadSingle();
+                            float sz = reader.ReadSingle();
 
-                        SetTransform(World, id, x, y, z, rx, ry, rz, sx, sy, sz);
+                            SetTransform(World, id, x, y, z, rx, ry, rz, sx, sy, sz);
+                        }
                     }
                 }
-
+                else
                 if (message.Tag == Tags.PhysicsUpdateEntityTag)
                 {
                     if (e.Client == WorldManager.clients[e.Client].World.PhysicsHost)
                         PhysicsUpdate(sender, e, WorldManager.clients[e.Client].World);
                 }
+                else
                 if (message.Tag == Tags.SetPhysicsEntityTag)
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        //Console.WriteLine("recieved physmessage");
-                        SetPhysicsDTO data = reader.ReadSerializable<SetPhysicsDTO>();
-                        setPhysics(World, data);
+                        while (reader.Position < reader.Length)
+                        {
+                            //Console.WriteLine("recieved physmessage");
+                            SetPhysicsDTO data = reader.ReadSerializable<SetPhysicsDTO>();
+                            setPhysics(World, data);
+                        }
                     }
+                }
+                else
+                if (message.Tag == Tags.AddComponentTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        while (reader.Position < reader.Length)
+                        {
+                            //Console.WriteLine("recieved physmessage");
+                            AddComponentClientDTO data = reader.ReadSerializable<AddComponentClientDTO>();
+                            addComponent(World, data);
+                        }
+                    }
+                }
+                else
+                if (message.Tag == Tags.RemoveComponentTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        while (reader.Position < reader.Length)
+                        {
+                            //Console.WriteLine("recieved physmessage");
+                            RemoveComponentDTO data = reader.ReadSerializable<RemoveComponentDTO>();
+                            removeComponent(World, data);
+                        }
+                    }
+                }
+                else
+                if (message.Tag == Tags.SetComponentPropertyTag)
+                {
+                    using (DarkRiftReader reader = message.GetReader())
+                    {
+                        //while (reader.Position < reader.Length)
+                        //{
+
+                            ComponentPropertyDTO data = reader.ReadSerializable<ComponentPropertyDTO>();
+
+                            setComponentProperty(World, data);
+                        //}
+                    }
+                }
+            }
+        }
+
+        private void setComponentProperty(WorldData World, ComponentPropertyDTO data)
+        {
+            if (World.EntityComponents.ContainsKey(data.ComponentID))
+            {
+                World.EntityComponents[data.ComponentID].AddOrUpdateProperty(data);
+
+                using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
+                {
+                    
+                    entityWriter.Write(data);
+
+                    using (Message addcompMessage = Message.Create(Tags.SetComponentPropertyTag, entityWriter))
+                    {
+                        foreach (IClient c in World.GetClients())
+                            c.SendMessage(addcompMessage, SendMode.Reliable);
+                    }
+
+                }
+            }
+        }
+
+        private void addComponent(WorldData World, AddComponentClientDTO data)
+        {
+            if (World.Entities.ContainsKey(data.TargetID))
+            {
+                UMComponentDTO exsisting = World.Entities[data.TargetID].Components.Where((x) => { return x.EntityID == data.EntityID; }).FirstOrDefault();
+                if (exsisting != null)
+                {
+                    Console.WriteLine($"Component of type {data.EntityID} already exsists on entity {data.TargetID}");
+                    return;
+                }
+
+
+                UMComponentDTO nComponent = new UMComponentDTO();
+                nComponent.EntityID = data.EntityID;
+                nComponent.TargetID = data.TargetID;
+                nComponent.ID = World.componentIdCounter;
+                World.componentIdCounter++;
+
+                World.Entities[data.TargetID].Components.Add(nComponent);
+                World.EntityComponents.Add(nComponent.ID, nComponent);
+                
+
+                using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
+                {
+                    AddComponentServerDTO outData = new AddComponentServerDTO();
+                    outData.ID = nComponent.ID;
+                    outData.EntityID = nComponent.EntityID;
+                    outData.TargetID = nComponent.TargetID;
+
+                    entityWriter.Write(outData);
+
+                    using (Message addcompMessage = Message.Create(Tags.AddComponentTag, entityWriter))
+                    {
+                        foreach (IClient c in World.GetClients())
+                            c.SendMessage(addcompMessage, SendMode.Reliable);
+                    }
+
+                }
+            }
+            else
+            {
+                Console.WriteLine("Trying to add component to non exsistant entity: " + data.TargetID);
+            }
+        }
+
+        private void removeComponent(WorldData world, RemoveComponentDTO data)
+        {
+            if (world.EntityComponents.ContainsKey(data.ComponentID))
+            {
+                uint owner = world.EntityComponents[data.ComponentID].TargetID;
+                world.EntityComponents.Remove(data.ComponentID);
+                world.Entities[owner].RemoveComponentByID(data.ComponentID);
+
+                using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
+                {
+                    RemoveComponentDTO outData = new RemoveComponentDTO();
+                    outData.ComponentID = data.ComponentID;
+
+                    entityWriter.Write(outData);
+
+                    using (Message addcompMessage = Message.Create(Tags.RemoveComponentTag, entityWriter))
+                    {
+                        foreach (IClient c in world.GetClients())
+                            c.SendMessage(addcompMessage, SendMode.Reliable);
+                    }
+
                 }
             }
         }
@@ -152,7 +309,7 @@ namespace UnityMultiplayerDRPlugin
             //TODO: don't loop over the entities twice here
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
             {
-                
+
                 foreach (UMEntity entity in World.Entities.Values)
                 {
                     if (!entity.isProceduralShape)
@@ -372,6 +529,42 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
+        public void SetParent(WorldData World, SetParentDTO data)
+        {
+            if (World.Entities.ContainsKey(data.ID) && (data.parentID == 0 || World.Entities.ContainsKey(data.parentID)))
+            {
+
+                World.Entities[data.ID].parentID = data.parentID;
+                World.Entities[data.ID].X = data.localPosition.x;
+                World.Entities[data.ID].Y = data.localPosition.y;
+                World.Entities[data.ID].Z = data.localPosition.z;
+
+                World.Entities[data.ID].rotX = data.localRotation.x;
+                World.Entities[data.ID].rotY = data.localRotation.y;
+                World.Entities[data.ID].rotZ = data.localRotation.z;
+
+                World.Entities[data.ID].scaleX = data.localScale.x;
+                World.Entities[data.ID].scaleY = data.localScale.y;
+                World.Entities[data.ID].scaleZ = data.localScale.z;
+
+                using (DarkRiftWriter entityParentWriter = DarkRiftWriter.Create())
+                {
+                    entityParentWriter.Write(data);
+
+                    using (Message setParentMessage = Message.Create(Tags.SetEntityParentTag, entityParentWriter))
+                    {
+                        foreach (IClient c in World.GetClients())
+                            c.SendMessage(setParentMessage, SendMode.Reliable);
+                    }
+
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Setting parent failed, non exsistant child or parent. Child: {data.ID} Parent {data.parentID}");
+            }
+        }
+
         public bool SetState(WorldData World, uint id, ushort state)
         {
             if (World.Entities.ContainsKey(id))
@@ -413,9 +606,6 @@ namespace UnityMultiplayerDRPlugin
 
             }
         }
-
-
-
 
         public void SetTransform(WorldData World, uint id, float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, float sx = 1, float sy = 1, float sz = 1)
         {
@@ -471,10 +661,10 @@ namespace UnityMultiplayerDRPlugin
             new Command("save", "Saves the world as a json file", "", SaveCommandHandler),
             new Command("load", "Loads a world", "", LoadCommandHandler)
         };
-        
+
         void SaveCommandHandler(object sender, CommandEventArgs e)
         {
-            foreach(WorldData World in WorldManager.Worlds)
+            foreach (WorldData World in WorldManager.Worlds)
             {
                 string json = JsonConvert.SerializeObject(World);
                 if (!File.Exists(World.WorldName + ".json"))
@@ -485,14 +675,14 @@ namespace UnityMultiplayerDRPlugin
                 writer.Write(json);
                 writer.Close();
             }
-            
+
         }
 
         void LoadCommandHandler(object sender, CommandEventArgs e)
         {
             foreach (WorldData World in WorldManager.Worlds)
             {
-                if(World.WorldName == e.Arguments[1])
+                if (World.WorldName == e.Arguments[1])
                 {
                     string filename = e.Arguments[1] + ".json";
                     if (File.Exists(filename))
@@ -513,7 +703,7 @@ namespace UnityMultiplayerDRPlugin
                         Console.WriteLine(filename + " not found");
                     }
                 }
-                
+
             }
         }
 

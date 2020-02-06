@@ -88,24 +88,27 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WorldData World = worldManager.clients[e.Client].World;
-                        DamageHurtableClientDTO data = reader.ReadSerializable<DamageHurtableClientDTO>();
-
-                        using (DarkRiftWriter damageHurtableWriter = DarkRiftWriter.Create())
+                        while (reader.Position < reader.Length)
                         {
+                            WorldData World = worldManager.clients[e.Client].World;
+                            DamageHurtableClientDTO data = reader.ReadSerializable<DamageHurtableClientDTO>();
 
-                            DamageHurtableServerDTO damageHurtableData = new DamageHurtableServerDTO();
-                            damageHurtableData.InstagatorID = e.Client.ID;
-                            damageHurtableData.VictimID = data.VictimID;
-                            damageHurtableData.damage = data.damage;
-
-                            Console.WriteLine($"{damageHurtableData.InstagatorID} damaging {damageHurtableData.VictimID} for {damageHurtableData.damage} hp");
-
-                            damageHurtableWriter.Write(damageHurtableData);
-                            using (Message damageHurtableMessage = Message.Create(Tags.DamageHurtableTag, damageHurtableWriter))
+                            using (DarkRiftWriter damageHurtableWriter = DarkRiftWriter.Create())
                             {
-                                foreach (IClient client in World.GetClients())
-                                    client.SendMessage(damageHurtableMessage, SendMode.Reliable);
+
+                                DamageHurtableServerDTO damageHurtableData = new DamageHurtableServerDTO();
+                                damageHurtableData.InstagatorID = e.Client.ID;
+                                damageHurtableData.VictimID = data.VictimID;
+                                damageHurtableData.damage = data.damage;
+
+                                Console.WriteLine($"{damageHurtableData.InstagatorID} damaging {damageHurtableData.VictimID} for {damageHurtableData.damage} hp");
+
+                                damageHurtableWriter.Write(damageHurtableData);
+                                using (Message damageHurtableMessage = Message.Create(Tags.DamageHurtableTag, damageHurtableWriter))
+                                {
+                                    foreach (IClient client in World.GetClients())
+                                        client.SendMessage(damageHurtableMessage, SendMode.Reliable);
+                                }
                             }
                         }
                     }
@@ -121,25 +124,28 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WorldData World = worldManager.clients[e.Client].World;
-                        WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>();
-                        Player cPlayer = World.players[e.Client];
-                        cPlayer.WeaponEntityID = data.weaponEntityId;
-
-
-
-                        using (DarkRiftWriter weaponSwitchWriter = DarkRiftWriter.Create())
+                        while (reader.Position < reader.Length)
                         {
-                            WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
-                            switchData.playerId = e.Client.ID;
-                            switchData.weaponEntityId = data.weaponEntityId;
-                            switchData.weaponSlot = data.weaponSlot;
+                            WorldData World = worldManager.clients[e.Client].World;
+                            WeaponSwitchClientDTO data = reader.ReadSerializable<WeaponSwitchClientDTO>();
+                            Player cPlayer = World.players[e.Client];
+                            cPlayer.WeaponEntityID = data.weaponEntityId;
 
-                            weaponSwitchWriter.Write(switchData);
-                            using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
+
+
+                            using (DarkRiftWriter weaponSwitchWriter = DarkRiftWriter.Create())
                             {
-                                foreach (IClient client in World.GetClients().Where(x => x != e.Client))
-                                    client.SendMessage(fireStartMessage, SendMode.Reliable);
+                                WeaponSwitchServerDTO switchData = new WeaponSwitchServerDTO();
+                                switchData.playerId = e.Client.ID;
+                                switchData.weaponEntityId = data.weaponEntityId;
+                                switchData.weaponSlot = data.weaponSlot;
+
+                                weaponSwitchWriter.Write(switchData);
+                                using (Message fireStartMessage = Message.Create(Tags.WeaponSwitchTag, weaponSwitchWriter)) //Repeat the incoming tagname as all message bodies are the same
+                                {
+                                    foreach (IClient client in World.GetClients().Where(x => x != e.Client))
+                                        client.SendMessage(fireStartMessage, SendMode.Reliable);
+                                }
                             }
                         }
                     }

@@ -126,56 +126,60 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WorldData World = WorldManager.clients[e.Client].World;
-                        PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
-                        ushort entityId = clientSpawnData.entityID;
-                        bool isNewPlayer = clientSpawnData.isAI ? !World.AIPlayers.ContainsKey(clientSpawnData.PlayerID) : !World.players.ContainsKey(e.Client);
-                        Player player;
-
-                        //TODO: use spawn rotation and health 
-
-                        if (isNewPlayer)
+                        while (reader.Position < reader.Length)
                         {
-                            player = new Player(
-                               clientSpawnData.isAI ? World.aiIDCounter : e.Client.ID, //Player id
-                               clientSpawnData.position.x, clientSpawnData.position.y, clientSpawnData.position.z, //Position x,y,z TODO: make this a UMVector3
-                               entityId,
-                               100f, // MaxHealth
-                               clientSpawnData.isAI
-                            );
+                            PlayerSpawnClientDTO clientSpawnData = reader.ReadSerializable<PlayerSpawnClientDTO>();
+                            WorldData World = WorldManager.clients[e.Client].World;
+                            
+                            ushort entityId = clientSpawnData.entityID;
+                            bool isNewPlayer = clientSpawnData.isAI ? !World.AIPlayers.ContainsKey(clientSpawnData.PlayerID) : !World.players.ContainsKey(e.Client);
+                            Player player;
 
-                            if (clientSpawnData.isAI)
+                            //TODO: use spawn rotation and health 
+
+                            if (isNewPlayer)
                             {
-                                World.AIPlayers.Add(World.aiIDCounter, player);
-                                World.aiIDCounter++;
+                                player = new Player(
+                                   clientSpawnData.isAI ? World.aiIDCounter : e.Client.ID, //Player id
+                                   clientSpawnData.position.x, clientSpawnData.position.y, clientSpawnData.position.z, //Position x,y,z TODO: make this a UMVector3
+                                   entityId,
+                                   100f, // MaxHealth
+                                   clientSpawnData.isAI
+                                );
+
+                                if (clientSpawnData.isAI)
+                                {
+                                    World.AIPlayers.Add(World.aiIDCounter, player);
+                                    World.aiIDCounter++;
+                                }
+                                else
+                                {
+                                    World.players.Add(e.Client, player);
+                                }
                             }
                             else
                             {
-                                World.players.Add(e.Client, player);
+                                player = clientSpawnData.isAI ? World.AIPlayers[clientSpawnData.PlayerID] : World.players[e.Client];
+                                player.entityId = clientSpawnData.entityID;
+                                player.X = clientSpawnData.position.x;
+                                player.Y = clientSpawnData.position.y;
+                                player.Z = clientSpawnData.position.z;
                             }
-                        }
-                        else
-                        {
-                            player = clientSpawnData.isAI ? World.AIPlayers[clientSpawnData.PlayerID] : World.players[e.Client];
-                            player.entityId = clientSpawnData.entityID;
-                            player.X = clientSpawnData.position.x;
-                            player.Y = clientSpawnData.position.y;
-                            player.Z = clientSpawnData.position.z;
-                        }
 
-                        Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}, entityID { player.entityId }");
+                            Console.WriteLine($"{player.ID} ({e.Client.ID}) requested spawn. isNewPlayer {isNewPlayer}, entityID { player.entityId }");
 
-                        using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
-                        {
-                            this.WritePlayerSpawnData(newPlayerWriter, player);
-
-                            using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
+                            using (DarkRiftWriter newPlayerWriter = DarkRiftWriter.Create())
                             {
-                                foreach (IClient client in World.GetClients())
-                                    client.SendMessage(newPlayerMessage, SendMode.Reliable);
+                                this.WritePlayerSpawnData(newPlayerWriter, player);
+
+                                using (Message newPlayerMessage = Message.Create(Tags.SpawnPlayerTag, newPlayerWriter))
+                                {
+                                    foreach (IClient client in World.GetClients())
+                                        client.SendMessage(newPlayerMessage, SendMode.Reliable);
+                                }
+
+
                             }
-
-
                         }
                     }
 
@@ -205,61 +209,62 @@ namespace UnityMultiplayerDRPlugin
                 {
                     using (DarkRiftReader reader = message.GetReader())
                     {
-                        WorldData World = WorldManager.clients[e.Client].World;
-                        PlayerUpdateClientDTO playerUpdateData = reader.ReadSerializable<PlayerUpdateClientDTO>();
-
-                        Player player;
-                        if (playerUpdateData.PlayerID < 128 ) 
+                        while (reader.Position < reader.Length)
                         {
-                            player = World.players[e.Client];
-                        }
-                        else
-                        {
-                            player = World.AIPlayers[playerUpdateData.PlayerID];
-                        }
-                        
+                            WorldData World = WorldManager.clients[e.Client].World;
+                            PlayerUpdateClientDTO playerUpdateData = reader.ReadSerializable<PlayerUpdateClientDTO>();
 
-                        player.X = playerUpdateData.x;
-                        player.Y = playerUpdateData.y;
-                        player.Z = playerUpdateData.z;
-
-                        player.RX = playerUpdateData.rx;
-                        player.RY = playerUpdateData.ry;
-                        player.RZ = playerUpdateData.rz;
-
-                        player.VX = playerUpdateData.vx;
-                        player.VY = playerUpdateData.vy;
-                        player.VZ = playerUpdateData.vz;
-
-                        using (DarkRiftWriter writer = DarkRiftWriter.Create())
-                        {
-                            PlayerUpdateServerDTO playerUpdateOutData = new PlayerUpdateServerDTO();
-                            playerUpdateOutData.ID = player.ID;
-
-                            playerUpdateOutData.x = player.X;
-                            playerUpdateOutData.y = player.Y;
-                            playerUpdateOutData.z = player.Z;
-
-                            playerUpdateOutData.rx = player.RX;
-                            playerUpdateOutData.ry = player.RY;
-                            playerUpdateOutData.rz = player.RZ;
-
-                            playerUpdateOutData.vx = player.VX;
-                            playerUpdateOutData.vy = player.VY;
-                            playerUpdateOutData.vz = player.VZ;
-
-                            playerUpdateOutData.triggerQueue = playerUpdateData.triggerQueue;
-
-                            writer.Write(playerUpdateOutData);
-
-                            using (Message playerUpdateMessage = Message.Create(Tags.PlayerUpdateTag, writer))
+                            Player player;
+                            if (playerUpdateData.PlayerID < 128)
                             {
-                                foreach (IClient c in World.GetClients().Where(x => x != e.Client))
-                                    c.SendMessage(playerUpdateMessage, e.SendMode);
+                                player = World.players[e.Client];
+                            }
+                            else
+                            {
+                                player = World.AIPlayers[playerUpdateData.PlayerID];
+                            }
+
+
+                            player.X = playerUpdateData.x;
+                            player.Y = playerUpdateData.y;
+                            player.Z = playerUpdateData.z;
+
+                            player.RX = playerUpdateData.rx;
+                            player.RY = playerUpdateData.ry;
+                            player.RZ = playerUpdateData.rz;
+
+                            player.VX = playerUpdateData.vx;
+                            player.VY = playerUpdateData.vy;
+                            player.VZ = playerUpdateData.vz;
+
+                            using (DarkRiftWriter writer = DarkRiftWriter.Create())
+                            {
+                                PlayerUpdateServerDTO playerUpdateOutData = new PlayerUpdateServerDTO();
+                                playerUpdateOutData.ID = player.ID;
+
+                                playerUpdateOutData.x = player.X;
+                                playerUpdateOutData.y = player.Y;
+                                playerUpdateOutData.z = player.Z;
+
+                                playerUpdateOutData.rx = player.RX;
+                                playerUpdateOutData.ry = player.RY;
+                                playerUpdateOutData.rz = player.RZ;
+
+                                playerUpdateOutData.vx = player.VX;
+                                playerUpdateOutData.vy = player.VY;
+                                playerUpdateOutData.vz = player.VZ;
+
+                                playerUpdateOutData.triggerQueue = playerUpdateData.triggerQueue;
+
+                                writer.Write(playerUpdateOutData);
+
+                                using (Message playerUpdateMessage = Message.Create(Tags.PlayerUpdateTag, writer))
+                                {
+                                    foreach (IClient c in World.GetClients().Where(x => x != e.Client))
+                                        c.SendMessage(playerUpdateMessage, e.SendMode);
+                                }
                             }
                         }
-
-
                     }
                 }
             }

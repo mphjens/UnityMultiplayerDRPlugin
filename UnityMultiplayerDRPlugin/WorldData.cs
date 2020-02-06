@@ -13,7 +13,10 @@ namespace UnityMultiplayerDRPlugin
         public string SceneName { get; private set; }
 
         public Dictionary<uint, UMEntity> Entities { get; private set; } 
-        public uint entityIdCounter = 0;
+        public uint entityIdCounter = 1; //Start counting at one, zero is reserved for NULL parent IDs
+        public Dictionary<uint, UMComponentDTO> EntityComponents { get; private set; }
+        public uint componentIdCounter = 0;
+
 
         public Dictionary<ushort, Player> AIPlayers { get; private set; }
         public ushort aiIDCounter = 128; // the first 128 ids are reserved for players
@@ -31,6 +34,7 @@ namespace UnityMultiplayerDRPlugin
             this.SceneName = SceneName;
             this.SceneEntityID = SceneEntityID;
             this.Entities = new Dictionary<uint, UMEntity>();
+            this.EntityComponents = new Dictionary<uint, UMComponentDTO>();
             this.players = new Dictionary<IClient, Player>();
             this.AIPlayers = new Dictionary<ushort, Player>();
         }
@@ -41,6 +45,7 @@ namespace UnityMultiplayerDRPlugin
             this.SceneEntityID = data.SceneEntityID;
             this.SceneName = data.SceneName;
             this.Entities = data.Entities;
+            this.EntityComponents = data.EntityComponents;
             this.entityIdCounter = data.entityIdCounter;
             this.aiIDCounter = data.aiIDCounter;
         }

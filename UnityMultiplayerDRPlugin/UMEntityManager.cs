@@ -657,7 +657,7 @@ namespace UnityMultiplayerDRPlugin
 
         public override Command[] Commands => new Command[]
         {
-            new Command("clear", "Despawns all entities from all worlds", "", ClearCommandHandler),
+            new Command("clearworlds", "Despawns all entities from all worlds", "", ClearCommandHandler),
             new Command("save", "Saves the world as a json file", "", SaveCommandHandler),
             new Command("load", "Loads a world", "", LoadCommandHandler)
         };

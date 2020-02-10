@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LiteDB" Version="5.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
   </ItemGroup>
 
@@ -26,6 +27,16 @@
     <Reference Include="DarkRift.Server">
       <HintPath>..\..\UnityMultiplayer\DarkRift Server (.NET Framework)\Lib\DarkRift.Server.dll</HintPath>
     </Reference>
+    <Reference Include="MurmurAdapter">
+      <HintPath>..\Lib\MurmurAdapter.dll</HintPath>
+    </Reference>
+    <Reference Include="MurmurPlugin">
+      <HintPath>..\Lib\MurmurPlugin.dll</HintPath>
+    </Reference>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;E:\Projecten\UnityMultiplayer\DarkRift Server (.NET Framework)\Plugins\$(ProjectName).dll&quot;" />
+  </Target>
 
 </Project>

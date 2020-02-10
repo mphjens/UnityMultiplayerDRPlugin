@@ -12,6 +12,7 @@ namespace UnityMultiplayerDRPlugin
     {
         UMPlayerManager playerManager;
         UMEntityManager entityManager;
+        UMVoipManager voipManager;
 
         //Todo: maybe make this an array with a fixed number of slots for the server
         public Dictionary<IClient, UMClient> clients;
@@ -35,6 +36,10 @@ namespace UnityMultiplayerDRPlugin
             {
                 entityManager = PluginManager.GetPluginByType<UMEntityManager>();
             }
+            if (voipManager == null)
+            {
+                voipManager = PluginManager.GetPluginByType<UMVoipManager>();
+            }
 
             UMClient NewClient = new UMClient(e.Client);
             clients.Add(e.Client, NewClient);
@@ -42,6 +47,9 @@ namespace UnityMultiplayerDRPlugin
 
             Console.WriteLine("WorldManager registered player");
             e.Client.MessageReceived += Client_MessageReceived;
+
+            voipManager.RegisterClient(e.Client);
+            
         }
 
         private void ClientDisconnected(object sender, ClientDisconnectedEventArgs e)

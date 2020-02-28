@@ -1,10 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net45</TargetFramework>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <ApplicationIcon />
+    <OutputType>Library</OutputType>
+    <StartupObject />
   </PropertyGroup>
-  
-  
+
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <Optimize>false</Optimize>
@@ -12,15 +15,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="InventoryDBEntities\" />
     <Folder Include="World\" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LiteDB" Version="5.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
+    <PackageReference Include="sqlite-net-pcl" Version="1.6.292" />
   </ItemGroup>
 
   <ItemGroup>
+    
     <Reference Include="DarkRift">
       <HintPath>..\..\UnityMultiplayer\DarkRift Server (.NET Framework)\Lib\DarkRift.dll</HintPath>
     </Reference>
@@ -34,6 +39,8 @@
       <HintPath>..\Lib\MurmurPlugin.dll</HintPath>
     </Reference>
   </ItemGroup>
+  
+  
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;E:\Projecten\UnityMultiplayer\DarkRift Server (.NET Framework)\Plugins\$(ProjectName).dll&quot;" />

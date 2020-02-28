@@ -204,9 +204,9 @@ namespace UnityMultiplayerDRPlugin
                         //while (reader.Position < reader.Length)
                         //{
 
-                            ComponentPropertyDTO data = reader.ReadSerializable<ComponentPropertyDTO>();
+                        ComponentPropertyDTO data = reader.ReadSerializable<ComponentPropertyDTO>();
 
-                            setComponentProperty(World, data);
+                        setComponentProperty(World, data);
                         //}
                     }
                 }
@@ -221,7 +221,7 @@ namespace UnityMultiplayerDRPlugin
 
                 using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
                 {
-                    
+
                     entityWriter.Write(data);
 
                     using (Message addcompMessage = Message.Create(Tags.SetComponentPropertyTag, entityWriter))
@@ -254,7 +254,7 @@ namespace UnityMultiplayerDRPlugin
 
                 World.Entities[data.TargetID].Components.Add(nComponent);
                 World.EntityComponents.Add(nComponent.ID, nComponent);
-                
+
 
                 using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
                 {
@@ -455,15 +455,17 @@ namespace UnityMultiplayerDRPlugin
 
         public uint SpawnEntity(WorldData World, SpawnEntityClientDTO dto)
         {
-            return this.SpawnEntity(World, dto.EntityId, dto.State, dto.hasPhysics,
+            uint newEntityID = this.SpawnEntity(World, dto.EntityId, dto.State, dto.hasPhysics,
                              dto.position.x, dto.position.y, dto.position.z,
                              dto.rotation.x, dto.rotation.y, dto.rotation.z,
-                             dto.scale.x, dto.scale.y, dto.scale.z);
+                             dto.scale.x, dto.scale.y, dto.scale.z, dto.components);
+
+            return newEntityID;
         }
 
         public uint SpawnEntity(WorldData World, ushort entityId, ushort state, bool hasPhysics, float x, float y, float z,
             float rotX = 0, float rotY = 0, float rotZ = 0,
-            float scaleX = 1, float scaleY = 1, float scaleZ = 1)
+            float scaleX = 1, float scaleY = 1, float scaleZ = 1, UMComponentDTO[] components = null)
         {
             UMEntity newEntity = new UMEntity();
 
@@ -487,6 +489,21 @@ namespace UnityMultiplayerDRPlugin
             Console.WriteLine("COUNTER = " + World.entityIdCounter);
 
             World.Entities.Add(newEntity.id, newEntity);
+
+            if (components != null)
+            {
+                foreach (UMComponentDTO comp in components)
+                {
+                    comp.TargetID = newEntity.id;
+
+                    comp.ID = World.componentIdCounter; //Assign new ComponentID
+                    World.componentIdCounter++;
+
+                    newEntity.Components.Add(comp);
+                    World.EntityComponents.Add(comp.ID, comp);
+
+                }
+            }
 
 
             using (DarkRiftWriter entityWriter = DarkRiftWriter.Create())
@@ -664,6 +681,9 @@ namespace UnityMultiplayerDRPlugin
 
         void SaveCommandHandler(object sender, CommandEventArgs e)
         {
+            if (WorldManager == null)
+                WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
+
             foreach (WorldData World in WorldManager.Worlds)
             {
                 string json = JsonConvert.SerializeObject(World);
@@ -680,31 +700,48 @@ namespace UnityMultiplayerDRPlugin
 
         void LoadCommandHandler(object sender, CommandEventArgs e)
         {
+            if (WorldManager == null)
+                WorldManager = PluginManager.GetPluginByType<UMWorldManager>();
+
+
+            string filename = e.Arguments[0] + ".json";
+            WorldData loadedWorld = null;
+            if (File.Exists(filename))
+            {
+                StreamReader reader = new StreamReader(filename);
+                string json = reader.ReadToEnd();
+                reader.Close();
+                loadedWorld = JsonConvert.DeserializeObject<WorldData>(json);
+            }
+            else
+            {
+                Console.WriteLine(filename + " not found");
+                return;
+            }
+
             foreach (WorldData World in WorldManager.Worlds)
             {
-                if (World.WorldName == e.Arguments[1])
+                if (World.WorldName == e.Arguments[0])
                 {
-                    string filename = e.Arguments[1] + ".json";
-                    if (File.Exists(filename))
-                    {
-                        StreamReader reader = new StreamReader(filename);
-                        string json = reader.ReadToEnd();
-                        reader.Close();
+                    World.copyFields(loadedWorld); //Sets the fields with the loaded data.
+                                                   //Rebroadcast the entities
+                    foreach (IClient c in World.GetClients())
+                        BroadcastEntities(c, World);
 
-                        WorldData world = JsonConvert.DeserializeObject<WorldData>(json);
-                        World.copyFields(world); //Sets the fields with the loaded data.
-
-                        //Rebroadcast the entities
-                        foreach (IClient c in world.GetClients())
-                            BroadcastEntities(c, world);
-                    }
-                    else
-                    {
-                        Console.WriteLine(filename + " not found");
-                    }
+                    return;
                 }
 
             }
+
+
+
+            //We need to create a new world
+            WorldData newWorld = new WorldData(loadedWorld.WorldName, loadedWorld.SceneEntityID, loadedWorld.SceneName);
+            newWorld.copyFields(loadedWorld); //Sets the fields with the loaded data.
+            WorldManager.Worlds.Add(newWorld);
+
+
+
         }
 
         void ClearCommandHandler(object sender, CommandEventArgs e)

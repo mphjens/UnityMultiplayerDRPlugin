@@ -6,7 +6,6 @@ using DarkRift.Server;
 using UnityMultiplayerDRPlugin.DTOs;
 using UnityMultiplayerDRPlugin.Entities;
 using System.IO;
-using SQLite;
 using System.Runtime.InteropServices;
 
 namespace UnityMultiplayerDRPlugin

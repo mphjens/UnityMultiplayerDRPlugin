@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using UnityMultiplayerDRPlugin.DTOs;
 using UnityMultiplayerDRPlugin.Entities;
 
 namespace UnityMultiplayerDRPlugin
@@ -48,6 +49,18 @@ namespace UnityMultiplayerDRPlugin
             this.EntityComponents = data.EntityComponents;
             this.entityIdCounter = data.entityIdCounter;
             this.aiIDCounter = data.aiIDCounter;
+        }
+
+        public WorldDTO ToDTO()
+        {
+            WorldDTO worldDto = new WorldDTO();
+            worldDto.WorldName = WorldName;
+            worldDto.NrPlayers = players.Count;
+            worldDto.MaxNrPlayers = 0;
+            worldDto.SceneName = SceneName;
+            worldDto.SceneEntityID = SceneEntityID;
+
+            return worldDto;
         }
 
         public IEnumerable<IClient> GetClients()

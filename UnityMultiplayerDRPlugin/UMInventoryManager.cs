@@ -41,6 +41,8 @@ namespace UnityMultiplayerDRPlugin
 
             Console.WriteLine("InventoryManager registered player");
             e.Client.MessageReceived += Client_MessageReceived;
+
+            this.BroadcastItemList(e.Client); //Send the item list to the new client
         }
 
 
@@ -266,8 +268,8 @@ namespace UnityMultiplayerDRPlugin
                                     this.InventoryChangeSubscriptions[Inventory].Add(e.Client);
                                 else
                                     this.InventoryChangeSubscriptions[Inventory].Remove(e.Client);
-                            }    
-                                
+                            }
+
                         }
 
 
@@ -287,28 +289,30 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
+        public void BroadcastItemList(IClient client)
+        {
+            using (DarkRiftWriter responseWriter = DarkRiftWriter.Create())
+            {
+                using (var db = new UMGameDatabaseContext())
+                {
+                    IEnumerable<ItemDTO> items = db.Items.ToList().Select((x) => x.ToDTO());
+
+                    GetItemsServerDTO response = new GetItemsServerDTO();
+                    response.Items = items.ToArray();
+
+                    responseWriter.Write(response);
+                    using (Message responseMessage = Message.Create(Tags.GetItems, responseWriter))
+                       client.SendMessage(responseMessage, SendMode.Reliable);
+
+                }
+            }
+        }
+
         public void OnGetItems(object sender, MessageReceivedEventArgs e)
         {
-
             using (Message message = e.GetMessage() as Message)
             {
-                using (DarkRiftWriter responseWriter = DarkRiftWriter.Create())
-                {
-                    using (var db = new UMGameDatabaseContext())
-                    {
-                        IEnumerable<ItemDTO> items = db.Items.ToList().Select((x) => x.ToDTO());
-
-                        GetItemsServerDTO response = new GetItemsServerDTO();
-                        response.Items = items.ToArray();
-
-                        responseWriter.Write(response);
-                        using (Message responseMessage = Message.Create(Tags.GetItems, responseWriter))
-                            e.Client.SendMessage(responseMessage, SendMode.Reliable);
-
-                    }
-
-                    return; //terminate
-                }
+                BroadcastItemList(e.Client);
             }
         }
 
@@ -333,8 +337,7 @@ namespace UnityMultiplayerDRPlugin
                             InventoryItemDTO[] inventoryItems = invData.Items.Select((x) => x.ToDTO()).ToArray();
 
                             GetInventoryServerDTO response = new GetInventoryServerDTO();
-                            response.InventoryID = invData.Id;
-                            response.Size = invData.Size;
+                            response.Inventory = invData.ToDTO();
                             response.InventoryItems = inventoryItems;
 
                             responseWriter.Write(response);

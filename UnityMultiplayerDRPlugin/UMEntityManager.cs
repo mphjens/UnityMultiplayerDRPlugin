@@ -28,7 +28,7 @@ namespace UnityMultiplayerDRPlugin
         //Gets called before the clients are removed from the world's client list 
         public void UnregisterClient(IClient client)
         {
-            if (WorldManager.clients.ContainsKey(client))
+            if (WorldManager != null &&WorldManager.clients.ContainsKey(client))
             {
                 WorldData World = WorldManager.clients[client].World;
                 if (World != null && client == World.PhysicsHost)

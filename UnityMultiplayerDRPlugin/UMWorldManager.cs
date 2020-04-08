@@ -108,6 +108,7 @@ namespace UnityMultiplayerDRPlugin
 
                         response.Success = true;
                         response.Message = $"{data.WorldName} Created";
+                        response.WorldData = NewWorld.ToDTO();
                         Console.WriteLine(response.Message);
                     }
                     else
@@ -135,13 +136,7 @@ namespace UnityMultiplayerDRPlugin
                 for (int i = 0; i < Worlds.Count; i++)
                 {
                     WorldData world = Worlds[i];
-                    WorldDTO worldDto = new WorldDTO();
-                    worldDto.WorldName = world.WorldName;
-                    worldDto.NrPlayers = world.players.Count;
-                    worldDto.MaxNrPlayers = 0;
-                    worldDto.SceneName = world.SceneName;
-                    worldDto.SceneEntityID = world.SceneEntityID;
-
+                    WorldDTO worldDto = world.ToDTO();
                     worldDtos[i] = worldDto;
                 }
 

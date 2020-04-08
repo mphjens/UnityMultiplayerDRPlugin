@@ -136,6 +136,11 @@ namespace UnityMultiplayerDRPlugin.InventoryDBEntities
 
             return sb.ToString();
         }
+
+        public InventoryDTO ToDTO()
+        {
+            return new InventoryDTO() { Id = this.Id, Size = Size };
+        }
     }
 
     public class InventoryItem

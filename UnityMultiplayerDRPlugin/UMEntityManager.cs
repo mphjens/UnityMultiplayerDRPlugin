@@ -21,8 +21,6 @@ namespace UnityMultiplayerDRPlugin
         public UMEntityManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
 
-            //ClientManager.ClientConnected += ClientConnected;
-            //ClientManager.ClientDisconnected += ClientDisconnected;
         }
 
         //Gets called before the clients are removed from the world's client list 

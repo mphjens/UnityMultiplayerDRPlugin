@@ -46,7 +46,7 @@ namespace UnityMultiplayerDRPlugin
 
         public void UnregisterClient(IClient client)
         {
-            if (WorldManager.clients.ContainsKey(client))
+            if (WorldManager != null && WorldManager.clients != null && WorldManager.clients.ContainsKey(client))
             {
                 WorldData world = WorldManager.clients[client].World;
                 if (world != null)

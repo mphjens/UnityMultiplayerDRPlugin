@@ -19,7 +19,7 @@ namespace UnityMultiplayerDRPlugin
         public Dictionary<IClient, AccountData> clientAccounts;
         public Dictionary<IClient, CharacterData> clientCharacters;
 
-        public Dictionary<Inventory, List<IClient>> InventoryChangeSubscriptions; // A list of clients that get messaged when an inventory changes.
+        public Dictionary<int, List<IClient>> InventoryChangeSubscriptions; // A list of clients that get messaged when an inventory changes.
 
         public UMInventoryManager(PluginLoadData pluginLoadData) : base(pluginLoadData)
         {
@@ -27,7 +27,7 @@ namespace UnityMultiplayerDRPlugin
             clientAccounts = new Dictionary<IClient, AccountData>();
             clientCharacters = new Dictionary<IClient, CharacterData>();
 
-            InventoryChangeSubscriptions = new Dictionary<Inventory, List<IClient>>();
+            InventoryChangeSubscriptions = new Dictionary<int, List<IClient>>();
 
             ClientManager.ClientConnected += ClientConnected;
             ClientManager.ClientDisconnected += ClientDisconnected;
@@ -80,6 +80,10 @@ namespace UnityMultiplayerDRPlugin
                 {
                     this.SubscribeClientToInventory(sender, e);
                 }
+                else if (message.Tag == Tags.UnsubscribeInventory)
+                {
+                    this.SubscribeClientToInventory(sender, e);
+                }
 
             }
         }
@@ -93,7 +97,7 @@ namespace UnityMultiplayerDRPlugin
                     using (var db = new UMGameDatabaseContext())
                     {
                         LoginAccountClientDTO data = message.GetReader().ReadSerializable<LoginAccountClientDTO>();
-                        AccountData account = db.Accounts.Include((x) => x.Characters).Where((x) => x.Username == data.Username).FirstOrDefault();
+                        AccountData account = db.Accounts.Include((x) => x.Characters.Select(y=>y.Inventory)).Where((z) => z.Username.ToLower() == data.Username.ToLower()).FirstOrDefault();
 
                         this.clientAccounts.Add(e.Client, account);
 
@@ -112,6 +116,53 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
+        public void CreateInventoryItem(int inventoryID, int itemID, int quantity, int Position = -1)
+        {
+            using(var db = new UMGameDatabaseContext())
+            {
+                Inventory destinationInventory = db.Inventories.Include(i => i.Items.Select(y=> y.ItemData)).Where(x => x.Id == inventoryID).FirstOrDefault();
+                ItemData itemData = db.Items.Where(x => x.Id == itemID).FirstOrDefault();
+                if(destinationInventory != null)
+                {
+                    int destPosition = Position;
+                    if(destPosition == -1) // Find the first open slot, TODO: look at how to optimise this
+                    {
+                        InventoryItem[] sortedItems = destinationInventory.Items.OrderBy(x => x.Position).ToArray();
+                        for(int i = 1; i < sortedItems.Length; i++)
+                        {
+                            if(sortedItems[i].Position - sortedItems[i - 1].Position > 1)
+                            {
+                                destPosition = i - 1;
+                                return;
+                            }
+                        }
+                    }
+
+                    InventoryItem item = new InventoryItem() { Inventory = destinationInventory, ItemData = itemData, Quantity = quantity, Position = destPosition };
+                    db.InventoryItems.Add(item);
+
+                    //Notify subscribers of inventory change
+                    using (DarkRiftWriter writer = DarkRift.DarkRiftWriter.Create())
+                    {
+                        writer.Write(new InventoryUpdateDTO() { InventoryID = destinationInventory.Id, Items = destinationInventory.Items.Select((x) => x.ToDTO()).ToArray() }); ;
+                        Message updateMessage = DarkRift.Message.Create(Tags.OnInventoryUpdate, writer);
+
+
+                        if (InventoryChangeSubscriptions.ContainsKey(destinationInventory.Id))
+                        {
+                            foreach (IClient client in InventoryChangeSubscriptions[destinationInventory.Id])
+                            {
+                                client.SendMessage(updateMessage, SendMode.Reliable);
+                            }
+                        }
+                    }
+
+                    db.SaveChanges();
+                }
+                
+            }
+        }
+
         private void TransferInventoryItem(object sender, MessageReceivedEventArgs e)
         {
             using (Message message = e.GetMessage() as Message)
@@ -122,18 +173,27 @@ namespace UnityMultiplayerDRPlugin
                     {
                         TransferItemClientDTO data = message.GetReader().ReadSerializable<TransferItemClientDTO>();
                         InventoryItem invItem = db.InventoryItems.Where((x) => x.Id == data.InventoryItemID).FirstOrDefault();
-                        Inventory sourceInventory = db.Inventories.Where((x) => x.Id == data.SourceInventoryID).Include((x) => x.Items).FirstOrDefault();
+                        Inventory sourceInventory = invItem.Inventory;
                         Inventory destinationInventory = db.Inventories.Where((x) => x.Id == data.DestinationInventoryID).Include((x) => x.Items).FirstOrDefault();
                         bool success = false;
 
-                        db.SaveChanges();
+                        
 
                         TransferItemServerDTO response = new TransferItemServerDTO();
 
                         if (invItem != null && destinationInventory != null)
                         {
+                            InventoryItem exsistingItem = destinationInventory.Items.Where(x => x.Position == data.Position).FirstOrDefault();
+
+                            if (exsistingItem != null) // when an item exsist on the destination position, swap it with the source item.
+                            {
+                                exsistingItem.Inventory = invItem.Inventory;
+                                exsistingItem.Position = invItem.Position;
+                            }
+
                             invItem.Inventory = destinationInventory;
                             invItem.Position = data.Position;
+
                             success = true;
                         }
                         else
@@ -141,50 +201,39 @@ namespace UnityMultiplayerDRPlugin
                             response.Message = "Item or destination does not exsist.";
                         }
 
+                        db.SaveChanges(); //Persist changes TODO: maybe these calls can be made async to improve performance
+
                         //TODO: Don't send all InventoryItems with this message, only invItem
 
-                        using (DarkRiftWriter writer = DarkRift.DarkRiftWriter.Create())
-                        {
-                            writer.Write(new InventoryUpdateDTO() { InventoryID = destinationInventory.Id, Items = new InventoryItemDTO[] { invItem.ToDTO() } });
-                            Message updateMessage = DarkRift.Message.Create(Tags.OnInventoryUpdate, writer);
-
-                            if (InventoryChangeSubscriptions.ContainsKey(sourceInventory))
-                            {
-                                foreach (IClient client in InventoryChangeSubscriptions[sourceInventory])
-                                {
-                                    client.SendMessage(updateMessage, SendMode.Reliable);
-                                }
-                            }
-
-                            if (InventoryChangeSubscriptions.ContainsKey(destinationInventory))
-                            {
-                                foreach (IClient client in InventoryChangeSubscriptions[destinationInventory])
-                                {
-                                    client.SendMessage(updateMessage, SendMode.Reliable);
-                                }
-                            }
-                        }
-
-
-                        if (InventoryChangeSubscriptions.ContainsKey(destinationInventory))
+                        if(success)
                         {
                             using (DarkRiftWriter writer = DarkRift.DarkRiftWriter.Create())
                             {
+                                writer.Write(new InventoryUpdateDTO() { InventoryID = sourceInventory.Id, Items = sourceInventory.Items.Select((x) => x.ToDTO()).ToArray() }); ;
                                 writer.Write(new InventoryUpdateDTO() { InventoryID = destinationInventory.Id, Items = destinationInventory.Items.Select((x) => x.ToDTO()).ToArray() });
                                 Message updateMessage = DarkRift.Message.Create(Tags.OnInventoryUpdate, writer);
 
-                                foreach (IClient client in InventoryChangeSubscriptions[destinationInventory])
+
+                                if (InventoryChangeSubscriptions.ContainsKey(sourceInventory.Id))
                                 {
-                                    client.SendMessage(updateMessage, SendMode.Reliable);
+                                    foreach (IClient client in InventoryChangeSubscriptions[sourceInventory.Id])
+                                    {
+                                        client.SendMessage(updateMessage, SendMode.Reliable);
+                                    }
+                                }
+
+                                if (InventoryChangeSubscriptions.ContainsKey(destinationInventory.Id))
+                                {
+                                    foreach (IClient client in InventoryChangeSubscriptions[destinationInventory.Id])
+                                    {
+                                        client.SendMessage(updateMessage, SendMode.Reliable);
+                                    }
                                 }
                             }
                         }
 
-
-
                         response.Success = success;
                         response.data = data;
-
 
                         responseWriter.Write(response);
                         using (Message responseMessage = Message.Create(Tags.TransferInventoryItem, responseWriter))
@@ -257,17 +306,17 @@ namespace UnityMultiplayerDRPlugin
 
                         if (Inventory != null)
                         {
-                            if (!this.InventoryChangeSubscriptions.ContainsKey(Inventory) && data.Subscribe)
+                            if (!this.InventoryChangeSubscriptions.ContainsKey(Inventory.Id) && data.Subscribe)
                             {
-                                this.InventoryChangeSubscriptions.Add(Inventory, new List<IClient>());
+                                this.InventoryChangeSubscriptions.Add(Inventory.Id, new List<IClient>());
                             }
 
-                            if (!this.InventoryChangeSubscriptions[Inventory].Contains(e.Client))
+                            if (!this.InventoryChangeSubscriptions[Inventory.Id].Contains(e.Client))
                             {
                                 if (data.Subscribe)
-                                    this.InventoryChangeSubscriptions[Inventory].Add(e.Client);
+                                    this.InventoryChangeSubscriptions[Inventory.Id].Add(e.Client);
                                 else
-                                    this.InventoryChangeSubscriptions[Inventory].Remove(e.Client);
+                                    this.InventoryChangeSubscriptions[Inventory.Id].Remove(e.Client);
                             }
 
                         }
@@ -289,6 +338,42 @@ namespace UnityMultiplayerDRPlugin
             }
         }
 
+        //public void UnsubscribeFromInventory(object sender, MessageReceivedEventArgs e)
+        //{
+        //    if (!clientAccounts.ContainsKey(e.Client))
+        //    {
+        //        Console.WriteLine($"Client {e.Client.ID} tried to subscribe to inventory with no account");
+        //        return;
+        //    }
+
+        //    using (Message message = e.GetMessage() as Message)
+        //    {
+        //        using (DarkRiftWriter responseWriter = DarkRiftWriter.Create())
+        //        {
+        //            SubscribeInventoryClientDTO data = message.GetReader().ReadSerializable<SubscribeInventoryClientDTO>();
+        //            bool success = false;
+        //            if(InventoryChangeSubscriptions.ContainsKey(data.InventoryID))
+        //            {
+        //                if(InventoryChangeSubscriptions[data.InventoryID].Contains(e.Client))
+        //                {
+        //                    InventoryChangeSubscriptions[data.InventoryID].Remove(e.Client);
+        //                    success = true;
+        //                }
+        //            }
+                    
+
+        //            SubscribeInventoryServerDTO response = new SubscribeInventoryServerDTO();
+        //            response.Success = success;
+        //            response.InventoryID = data.InventoryID;
+
+        //            responseWriter.Write(response);
+        //            using (Message responseMessage = Message.Create(Tags.SubscribeInventory, responseWriter))
+        //                e.Client.SendMessage(responseMessage, SendMode.Reliable);
+
+        //        }
+        //    }
+        //}
+
         public void BroadcastItemList(IClient client)
         {
             using (DarkRiftWriter responseWriter = DarkRiftWriter.Create())
@@ -302,7 +387,7 @@ namespace UnityMultiplayerDRPlugin
 
                     responseWriter.Write(response);
                     using (Message responseMessage = Message.Create(Tags.GetItems, responseWriter))
-                       client.SendMessage(responseMessage, SendMode.Reliable);
+                        client.SendMessage(responseMessage, SendMode.Reliable);
 
                 }
             }

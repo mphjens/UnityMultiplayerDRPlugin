@@ -12,7 +12,7 @@ namespace UnityMultiplayerDRPlugin.InventoryDBEntities
     public class ItemData
     {
         public int Id { get; set; }
-        public ushort EntityID { get; set; }
+        public int EntityID { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
 
@@ -28,7 +28,7 @@ namespace UnityMultiplayerDRPlugin.InventoryDBEntities
         {
             var retval = new ItemDTO();
             retval.Id = Id;
-            retval.EntityID = EntityID;
+            retval.EntityID = (ushort)EntityID;
             retval.Name = Name;
             retval.Description = Description;
             retval.Value = Value;
